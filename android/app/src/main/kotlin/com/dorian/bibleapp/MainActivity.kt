@@ -1,4 +1,4 @@
-package com.example.bible_app
+package com.dorian.bibleapp
 
 import io.flutter.embedding.android.FlutterActivity
 
