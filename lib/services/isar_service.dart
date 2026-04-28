@@ -15,20 +15,31 @@ class IsarService {
     return await getIsarInstance();
   }
 
+  static Future<void> resetAllReadStatus() async {
+    final isar = await db;
+    final List<Verse> allVerses = await isar.verses.where().findAll();
+
+    if (allVerses.isNotEmpty) {
+      await isar.writeTxn(() async {
+        for (var verse in allVerses) {
+          verse.isChapterRead = false;
+        }
+        await isar.verses.putAll(allVerses);
+        debugPrint('IsarService: Statut "lu" réinitialisé.');
+      });
+    }
+  }
+
   static Future<Isar> getIsarInstance() async {
     if (_isar != null && _isar!.isOpen) return _isar!;
 
     if (kIsWeb) {
-      // ASTUCE : On utilise 'as dynamic' pour contourner la vérification stricte
-      // du compilateur qui veut absolument un 'directory' (bug de signature Isar 3).
-      // Sur le Web, Isar.open NE DOIT PAS recevoir de directory.
       _isar = await (Isar.open as dynamic)(
         [VerseSchema],
         name: "bibleIsar",
       );
       debugPrint("ℹ️ Instance Isar ouverte (Web)");
     } else {
-      // Version Mobile/Desktop native
       final dir = await getApplicationDocumentsDirectory();
       _isar = await Isar.open(
         [VerseSchema],
@@ -41,7 +52,6 @@ class IsarService {
     return _isar!;
   }
 
-  // --- Le reste du code reste inchangé ---
   static Future<bool> isBibleImported() async {
     final isar = await db;
     final count = await isar.verses.count();
