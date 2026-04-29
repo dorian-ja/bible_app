@@ -18,14 +18,12 @@ class IsarService {
   static Future<void> resetAllReadStatus() async {
     final isar = await db;
     final List<Verse> allVerses = await isar.verses.where().findAll();
-
     if (allVerses.isNotEmpty) {
       await isar.writeTxn(() async {
         for (var verse in allVerses) {
           verse.isChapterRead = false;
         }
         await isar.verses.putAll(allVerses);
-        debugPrint('IsarService: Statut "lu" réinitialisé.');
       });
     }
   }
@@ -33,21 +31,18 @@ class IsarService {
   static Future<Isar> getIsarInstance() async {
     if (_isar != null && _isar!.isOpen) return _isar!;
 
-    if (kIsWeb) {
-      _isar = await (Isar.open as dynamic)(
-        [VerseSchema],
-        name: "bibleIsar",
-      );
-      debugPrint("ℹ️ Instance Isar ouverte (Web)");
-    } else {
+    String dirPath = ''; 
+    if (!kIsWeb) {
       final dir = await getApplicationDocumentsDirectory();
-      _isar = await Isar.open(
-        [VerseSchema],
-        directory: dir.path,
-        name: "bibleIsar",
-      );
-      debugPrint("ℹ️ Instance Isar ouverte à ${dir.path}");
+      dirPath = dir.path;
     }
+
+    _isar = await Isar.open(
+      [VerseSchema],
+      directory: dirPath,
+      name: "bibleIsar",
+      inspector: !kIsWeb, // Désactiver l'inspecteur sur le Web
+    );
     
     return _isar!;
   }

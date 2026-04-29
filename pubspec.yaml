@@ -6,7 +6,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.1.1+3
 
 environment:
-  sdk: ^3.8.1
+  sdk: ">=3.8.0 <4.0.0"
 
 
 dependencies:
@@ -15,8 +15,7 @@ dependencies:
   shared_preferences: ^2.5.3
   cupertino_icons: ^1.0.8
   isar: ^3.1.0
-  isar_flutter_libs: any
-  path_provider: any
+  isar_flutter_libs: ^3.1.0
   share_plus: ^11.0.0
   flutter_local_notifications: ^19.3.0
   flutter_timezone: ^4.1.1
@@ -49,4 +48,3 @@ flutter:
     - assets/bible.json
     - assets/MyOwnBible_logo_trans.png
   uses-material-design: true
-
