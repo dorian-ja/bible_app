@@ -1,71 +1,50 @@
 // lib/pages/favoris_page.dart
-import 'dart:async'; // Pour StreamSubscription
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:isar/isar.dart';
-import '../models/verse.dart';
-import '../services/isar_service.dart';
+import '../database/database.dart';
+import '../services/database_service.dart';
 
 class FavorisPage extends StatefulWidget {
   final Function(String book, String chapter)? onVerseTap;
 
-  const FavorisPage({Key? key, this.onVerseTap}) : super(key: key);
+  const FavorisPage({super.key, this.onVerseTap});
 
   @override
-  _FavorisPageState createState() => _FavorisPageState();
+  State<FavorisPage> createState() => _FavorisPageState();
 }
 
 class _FavorisPageState extends State<FavorisPage> {
-  final IsarService _isarService = IsarService();
   List<Verse> _favoriteVerses = [];
   bool _isLoading = true;
-  StreamSubscription? _favoritesCollectionWatcher;
+  StreamSubscription? _favoritesWatcher;
 
   @override
   void initState() {
     super.initState();
-    _loadFavoriteVerses();
-    _watchFavoritesCollection();
+    _subscribeToFavorites();
   }
 
-  void _watchFavoritesCollection() async {
-    final isar = await IsarService.db;
-    // La méthode watchLazy() est directement disponible sur le QueryBuilder retourné par filter()
-    _favoritesCollectionWatcher = isar.verses
-        .filter()
-        .isFavoriteEqualTo(true)
-        .watchLazy() // ✅ Correct: watchLazy() est appelé sur le QueryBuilder
-        .listen((_) {
-          // Pour watchLazy, le paramètre du listen est void (ou dynamic que l'on ignore)
-          debugPrint(
-            "FavorisPage: Changement détecté par Isar watch, rechargement...",
-          );
-          if (mounted) {
-            _loadFavoriteVerses();
-          }
+  void _subscribeToFavorites() {
+    _favoritesWatcher = (DatabaseService.db.select(DatabaseService.db.verses)
+          ..where((t) => t.isFavorite.equals(true)))
+        .watch()
+        .listen((verses) {
+      if (mounted) {
+        setState(() {
+          _favoriteVerses = verses;
+          _isLoading = false;
         });
-  }
-
-  Future<void> _loadFavoriteVerses() async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
+      }
     });
-    _favoriteVerses = await _isarService.getFavoriteVerses();
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _removeFavorite(Verse verse) async {
-    await _isarService.toggleFavorite(verse);
-    // Le watcher s'occupe du rechargement
+    await DatabaseService.toggleFavorite(verse);
   }
 
   @override
   void dispose() {
-    _favoritesCollectionWatcher?.cancel();
+    _favoritesWatcher?.cancel();
     super.dispose();
   }
 
@@ -85,17 +64,13 @@ class _FavorisPageState extends State<FavorisPage> {
         final verse = _favoriteVerses[index];
         return ListTile(
           title: Text('${verse.book} ${verse.chapter}:${verse.verse}'),
-          subtitle: Text(verse.text),
+          subtitle: Text(verse.textContent), // Corrigé : textContent au lieu de text
           trailing: IconButton(
-            icon: Icon(
-              verse.isFavorite ? Icons.star : Icons.star_border,
-              color: verse.isFavorite ? Colors.amber : Colors.grey,
-            ),
+            icon: const Icon(Icons.star, color: Colors.amber),
             tooltip: 'Retirer des favoris',
             onPressed: () => _removeFavorite(verse),
           ),
-          onTap: () =>
-              widget.onVerseTap?.call(verse.book, verse.chapter.toString()),
+          onTap: () => widget.onVerseTap?.call(verse.book, verse.chapter.toString()),
         );
       },
     );

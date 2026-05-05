@@ -13,7 +13,7 @@ class DatabaseService {
   }
 
   static Future<void> resetAllReadStatus() async {
-    await (db.update(db.verses)..write(const VersesCompanion(isChapterRead: Value(false)))).go();
+    await db.update(db.verses).write(const VersesCompanion(isChapterRead: Value(false)));
   }
 
   static Future<bool> isBibleImported() async {
@@ -46,7 +46,7 @@ class DatabaseService {
                   book: bookKey,
                   chapter: chapterInt,
                   verse: verseNumInt,
-                  text: verseText,
+                  textContent: verseText,
                   isFavorite: const Value(false),
                   isChapterRead: const Value(false),
                 ));
@@ -70,7 +70,8 @@ class DatabaseService {
 
   static Future<List<String>> getBooks() async {
     final query = db.selectOnly(db.verses, distinct: true)..addColumns([db.verses.book]);
-    return query.map((row) => row.read(db.verses.book)!).get();
+    final rows = await query.get();
+    return rows.map((row) => row.read(db.verses.book)!).toList();
   }
 
   static Future<List<String>> getChaptersForBook(String bookName) async {
@@ -114,18 +115,19 @@ class DatabaseService {
 
   static Future<List<Verse>> searchVersesByKeyword(String keyword) async {
     if (keyword.trim().isEmpty) return [];
-    return (db.select(db.verses)..where((t) => t.text.contains(keyword))).get();
+    return (db.select(db.verses)..where((t) => t.textContent.contains(keyword))).get();
   }
 
   static Future<bool> isChapterRead(String book, int chapter) async {
-    final countUnread = await (db.select(db.verses)
+    final unreadRows = await (db.select(db.verses)
           ..where((t) => t.book.equals(book) & t.chapter.equals(chapter) & t.isChapterRead.equals(false)))
-        .count()
-        .getSingle();
-    
-    if (countUnread == 0) {
-      final total = await (db.select(db.verses)..where((t) => t.book.equals(book) & t.chapter.equals(chapter))).count().getSingle();
-      return total > 0;
+        .get();
+
+    if (unreadRows.isEmpty) {
+      final allRows = await (db.select(db.verses)
+            ..where((t) => t.book.equals(book) & t.chapter.equals(chapter)))
+          .get();
+      return allRows.isNotEmpty;
     }
     return false;
   }
@@ -144,6 +146,19 @@ class DatabaseService {
           if (verses.isEmpty) return false;
           return verses.every((v) => v.isChapterRead);
         });
+  }
+
+  static Stream<List<Verse>> watchVerses(String bookName, int chapterNumber) {
+    return (db.select(db.verses)
+          ..where((t) => t.book.equals(bookName) & t.chapter.equals(chapterNumber))
+          ..orderBy([(t) => OrderingTerm(expression: t.verse)]))
+        .watch();
+  }
+
+  static Stream<Verse?> watchSingleVerse(String book, int chapter, int verseNum) {
+    return (db.select(db.verses)
+          ..where((t) => t.book.equals(book) & t.chapter.equals(chapter) & t.verse.equals(verseNum)))
+        .watchSingleOrNull();
   }
 
   static Future<Set<String>> getAllFullyReadChapterKeys() async {
