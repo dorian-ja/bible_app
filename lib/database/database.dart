@@ -19,6 +19,10 @@ class Verses extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Constructeur réservé aux tests unitaires (base en mémoire).
+  // ignore: use_super_parameters
+  AppDatabase.forTesting(QueryExecutor e) : super(e);
+
   @override
   int get schemaVersion => 1;
 }
