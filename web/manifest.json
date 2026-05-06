@@ -1,11 +1,11 @@
 {
-    "name": "bible_app",
-    "short_name": "bible_app",
+    "name": "MyOwnBible",
+    "short_name": "MyOwnBible",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#3F51B5",
+    "theme_color": "#3F51B5",
+    "description": "Lecture, recherche, favoris et plan de lecture de la Bible.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

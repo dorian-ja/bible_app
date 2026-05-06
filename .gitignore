@@ -78,4 +78,7 @@ android/app/build/
 *.lock
 *.DS_Store
 *.class
+
+# Config IDE locale
+.vscode/
  

@@ -25,6 +25,15 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      // Exemple pour une future v2 :
+      // if (from < 2) { await m.addColumn(verses, verses.newColumn); }
+    },
+  );
 }
 
 QueryExecutor _openConnection() {

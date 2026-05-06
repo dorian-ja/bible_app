@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
+import '../utils/note_colors.dart';
+import '../widgets/note_color_picker.dart';
 
 class LecturePage extends StatefulWidget {
   final String? initialBook;
@@ -117,23 +119,44 @@ class _LecturePageState extends State<LecturePage> {
 
   void showNoteDialogForVerse(Verse verse) {
     final controller = TextEditingController(text: verse.noteText ?? '');
+    String? selectedColor = verse.noteColor;
 
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text("Note pour ${verse.book} ${verse.chapter}:${verse.verse}"),
-        content: TextField(controller: controller, maxLines: 3, decoration: InputDecoration(hintText: "Votre note...")),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text("Annuler")),
-          TextButton(
-            onPressed: () async {
-              await DatabaseService.updateVerseNote(verse, controller.text, null);
-              if (!dialogContext.mounted) return;
-              Navigator.pop(dialogContext);
-            },
-            child: Text("Enregistrer"),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: Text("Note pour ${verse.book} ${verse.chapter}:${verse.verse}"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(controller: controller, maxLines: 3, decoration: const InputDecoration(hintText: "Votre note...")),
+              const SizedBox(height: 12),
+              const Text('Couleur de surlignage :', style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 6),
+              NoteColorPicker(
+                selectedHex: selectedColor,
+                onChanged: (hex) => setStateDialog(() => selectedColor = hex),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Annuler")),
+            TextButton(
+              onPressed: () async {
+                final text = controller.text.trim();
+                await DatabaseService.updateVerseNote(
+                  verse,
+                  text.isEmpty ? null : text,
+                  selectedColor,
+                );
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Enregistrer"),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -184,22 +207,26 @@ class _LecturePageState extends State<LecturePage> {
                 itemCount: _chapterVerses.length,
                 itemBuilder: (context, index) {
                   final verse = _chapterVerses[index];
-                  return ListTile(
-                    title: Text('${verse.verse}. ${verse.textContent}'),
-                    subtitle: verse.noteText != null ? Text(verse.noteText!, style: TextStyle(fontStyle: FontStyle.italic)) : null,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(icon: Icon(Icons.edit_note), onPressed: () => showNoteDialogForVerse(verse)),
-                        IconButton(
-                          icon: Icon(verse.isFavorite ? Icons.star : Icons.star_border, color: verse.isFavorite ? Colors.amber : null),
-                          onPressed: () => DatabaseService.toggleFavorite(verse),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.share),
-                          onPressed: () => SharePlus.instance.share(ShareParams(text: '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"')),
-                        ),
-                      ],
+                  final highlight = parseNoteColor(verse.noteColor);
+                  return Container(
+                    color: highlight,
+                    child: ListTile(
+                      title: Text('${verse.verse}. ${verse.textContent}'),
+                      subtitle: verse.noteText != null ? Text(verse.noteText!, style: TextStyle(fontStyle: FontStyle.italic)) : null,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(icon: Icon(Icons.edit_note), onPressed: () => showNoteDialogForVerse(verse)),
+                          IconButton(
+                            icon: Icon(verse.isFavorite ? Icons.star : Icons.star_border, color: verse.isFavorite ? Colors.amber : null),
+                            onPressed: () => DatabaseService.toggleFavorite(verse),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.share),
+                            onPressed: () => SharePlus.instance.share(ShareParams(text: '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"')),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
