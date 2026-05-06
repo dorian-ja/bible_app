@@ -79,7 +79,6 @@ android/app/build/
 *.DS_Store
 *.class
 
-# Configuration locale (proxy d'entreprise, profils VS Code)
+# Config IDE locale
 .vscode/
-tools/enable-proxy.ps1
  
