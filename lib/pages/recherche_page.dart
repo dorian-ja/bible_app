@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:diacritic/diacritic.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
@@ -54,8 +52,8 @@ class _RecherchePageState extends State<RecherchePage> {
   }
 
   Future<void> loadBibleData() async {
-    final String response = await rootBundle.loadString('assets/bible.json');
-    setState(() => bibleData = json.decode(response));
+    final data = await DatabaseService.getBibleData();
+    setState(() => bibleData = data);
   }
 
   Future<void> _toggleFavorite(Verse verse) async {

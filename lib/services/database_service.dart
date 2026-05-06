@@ -1,15 +1,26 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
+import 'package:diacritic/diacritic.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../database/database.dart';
+import '../utils/canonical_books.dart';
 
 class DatabaseService {
   static AppDatabase? _db;
+  static Map<String, dynamic>? _bibleCache;
 
   static AppDatabase get db {
     _db ??= AppDatabase();
     return _db!;
+  }
+
+  /// Retourne la Bible complète depuis le cache mémoire (chargé une seule fois).
+  static Future<Map<String, dynamic>> getBibleData() async {
+    if (_bibleCache != null) return _bibleCache!;
+    final String raw = await rootBundle.loadString('assets/bible.json');
+    _bibleCache = json.decode(raw) as Map<String, dynamic>;
+    return _bibleCache!;
   }
 
   static Future<void> resetAllReadStatus() async {
@@ -28,8 +39,7 @@ class DatabaseService {
     }
 
     try {
-      final String data = await rootBundle.loadString('assets/bible.json');
-      final Map<String, dynamic> bibleMap = json.decode(data);
+      final Map<String, dynamic> bibleMap = await getBibleData();
       final List<VersesCompanion> versesToInsert = [];
 
       for (final bookKey in bibleMap.keys) {
@@ -71,7 +81,8 @@ class DatabaseService {
   static Future<List<String>> getBooks() async {
     final query = db.selectOnly(db.verses, distinct: true)..addColumns([db.verses.book]);
     final rows = await query.get();
-    return rows.map((row) => row.read(db.verses.book)!).toList();
+    final books = rows.map((row) => row.read(db.verses.book)!).toList();
+    return sortBooksCanonically(books);
   }
 
   static Future<List<String>> getChaptersForBook(String bookName) async {
@@ -114,8 +125,13 @@ class DatabaseService {
   }
 
   static Future<List<Verse>> searchVersesByKeyword(String keyword) async {
-    if (keyword.trim().isEmpty) return [];
-    return (db.select(db.verses)..where((t) => t.textContent.contains(keyword))).get();
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return [];
+    final normalizedKeyword = removeDiacritics(trimmed.toLowerCase());
+    final allVerses = await db.select(db.verses).get();
+    return allVerses
+        .where((v) => removeDiacritics(v.textContent.toLowerCase()).contains(normalizedKeyword))
+        .toList();
   }
 
   static Future<bool> isChapterRead(String book, int chapter) async {

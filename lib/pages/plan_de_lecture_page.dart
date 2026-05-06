@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:flutter/services.dart';
 import '../services/database_service.dart';
 
 class PlanDeLecturePage extends StatefulWidget {
@@ -26,8 +24,7 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
   }
 
   Future<void> _initPlan() async {
-    final String data = await rootBundle.loadString('assets/bible.json');
-    final Map<String, dynamic> decoded = json.decode(data);
+    final Map<String, dynamic> decoded = await DatabaseService.getBibleData();
     int count = 0;
     decoded.forEach((_, chapters) => count += (chapters as Map).length);
     

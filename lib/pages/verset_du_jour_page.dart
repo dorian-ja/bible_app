@@ -1,15 +1,16 @@
 // lib/pages/verset_du_jour_page.dart
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../database/database.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
+import '../utils/note_colors.dart';
+import '../widgets/note_color_picker.dart';
 
 class VersetDuJourPage extends StatefulWidget {
   final void Function(String book, String chapter)? onVerseTap;
@@ -28,6 +29,9 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
   void initState() {
     super.initState();
     _loadOrGenerateVerse();
+    // Marque le verset du jour comme lu dès l'ouverture de la page
+    // (annule également le rappel programmé à 12h00 sur mobile/desktop).
+    NotificationService.markVerseReadToday();
   }
 
   @override
@@ -48,8 +52,7 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
 
     if (storedDate != keyDate || storedBook == null || storedChapter == null || storedVerseNum == null) {
       // Générer un nouveau verset du jour
-      final String data = await rootBundle.loadString('assets/bible.json');
-      final Map<String, dynamic> bibleData = json.decode(data);
+      final bibleData = await DatabaseService.getBibleData();
       
       final books = bibleData.keys.toList();
       final randomBook = books[Random().nextInt(books.length)];
@@ -83,28 +86,50 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
 
   void _showNoteDialog() {
     if (_currentVerse == null) return;
-    final controller = TextEditingController(text: _currentVerse!.noteText ?? '');
+    final verse = _currentVerse!;
+    final controller = TextEditingController(text: verse.noteText ?? '');
+    String? selectedColor = verse.noteColor;
 
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Note personnelle"),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: const InputDecoration(hintText: "Votre note..."),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Annuler")),
-          TextButton(
-            onPressed: () async {
-              await DatabaseService.updateVerseNote(_currentVerse!, controller.text, null);
-              if (!dialogContext.mounted) return;
-              Navigator.pop(dialogContext);
-            },
-            child: const Text("Enregistrer"),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: const Text("Note personnelle"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                maxLines: 5,
+                decoration: const InputDecoration(hintText: "Votre note..."),
+              ),
+              const SizedBox(height: 12),
+              const Text('Couleur de surlignage :', style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 6),
+              NoteColorPicker(
+                selectedHex: selectedColor,
+                onChanged: (hex) => setStateDialog(() => selectedColor = hex),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Annuler")),
+            TextButton(
+              onPressed: () async {
+                final text = controller.text.trim();
+                await DatabaseService.updateVerseNote(
+                  verse,
+                  text.isEmpty ? null : text,
+                  selectedColor,
+                );
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Enregistrer"),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -137,7 +162,7 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
                 margin: const EdgeInsets.only(top: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
+                  color: parseNoteColor(_currentVerse!.noteColor) ?? Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey.shade400),
                 ),

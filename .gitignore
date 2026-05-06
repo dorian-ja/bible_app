@@ -78,4 +78,8 @@ android/app/build/
 *.lock
 *.DS_Store
 *.class
+
+# Configuration locale (proxy d'entreprise, profils VS Code)
+.vscode/
+tools/enable-proxy.ps1
  

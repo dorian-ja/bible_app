@@ -8,11 +8,13 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 
 // Nouveaux imports Drift
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
 import 'pages/lecture_page.dart';
 import 'pages/verset_du_jour_page.dart';
 import 'pages/favoris_page.dart';
 import 'pages/recherche_page.dart';
 import 'pages/plan_de_lecture_page.dart';
+import 'pages/settings_page.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -45,8 +47,9 @@ void main() async {
   } catch (e) { debugPrint('Erreur TZ: $e'); }
 
   if (!kIsWeb) await initializeLocalNotifications();
+  if (!kIsWeb) await NotificationService.rescheduleOnStartup();
   
-  runApp(BibleApp());
+  runApp(const BibleApp());
 }
 
 class BibleApp extends StatefulWidget {
@@ -85,7 +88,30 @@ class _BibleAppState extends State<BibleApp> {
       setState(() => _initializationMessage = "Importation de la Bible...");
       await DatabaseService.importBibleFromJson();
     }
+    // Sur le web, récupère un éventuel rappel à afficher en bannière au démarrage.
+    String? webReminder;
+    if (kIsWeb) {
+      webReminder = await NotificationService.getStartupWebReminder();
+    }
     setState(() => _isAppInitialized = true);
+
+    if (webReminder != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final messenger = ScaffoldMessenger.maybeOf(navigatorKey.currentContext ?? context);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(webReminder!),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'Lire',
+              onPressed: () {
+                tabNavigationController.add(1); // onglet Verset du jour
+              },
+            ),
+          ),
+        );
+      });
+    }
   }
 
   void navigateToLecture(String book, String chapter) {
@@ -102,7 +128,21 @@ class _BibleAppState extends State<BibleApp> {
   Widget build(BuildContext context) {
     if (!_isAppInitialized) {
       return MaterialApp(
-        home: Scaffold(body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircularProgressIndicator(), Text(_initializationMessage)]))),
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset('assets/MyOwnBible_logo_trans.png', width: 120, height: 120),
+                const SizedBox(height: 24),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(_initializationMessage),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -119,7 +159,18 @@ class _BibleAppState extends State<BibleApp> {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: true),
       home: Scaffold(
-        appBar: AppBar(title: Text(['Lecture', 'Verset du jour', 'Favoris', 'Recherche', 'Plan'][_selectedIndex])),
+        appBar: AppBar(
+          title: Text(['Lecture', 'Verset du jour', 'Favoris', 'Recherche', 'Plan'][_selectedIndex]),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Paramètres',
+              onPressed: () => navigatorKey.currentState?.push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              ),
+            ),
+          ],
+        ),
         body: IndexedStack(index: _selectedIndex, children: pages),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,

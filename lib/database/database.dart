@@ -19,8 +19,21 @@ class Verses extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Constructeur réservé aux tests unitaires (base en mémoire).
+  // ignore: use_super_parameters
+  AppDatabase.forTesting(QueryExecutor e) : super(e);
+
   @override
   int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      // Exemple pour une future v2 :
+      // if (from < 2) { await m.addColumn(verses, verses.newColumn); }
+    },
+  );
 }
 
 QueryExecutor _openConnection() {
