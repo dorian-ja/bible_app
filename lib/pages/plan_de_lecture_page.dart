@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
+import '../utils/canonical_books.dart';
 
 class PlanDeLecturePage extends StatefulWidget {
   final Function(String book, String chapter)? onChapterTap;
@@ -12,7 +13,8 @@ class PlanDeLecturePage extends StatefulWidget {
 }
 
 class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
-  Map<String, dynamic> bibleData = {};
+  List<String> _books = [];
+  Map<String, List<String>> _chapters = {};
   Set<String> _readChapters = {};
   StreamSubscription? _planWatcher;
   int totalChapters = 0;
@@ -25,12 +27,24 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
 
   Future<void> _initPlan() async {
     final Map<String, dynamic> decoded = await DatabaseService.getBibleData();
+
+    // Tri canonique des livres
+    final sorted = sortBooksCanonically(decoded.keys.toList());
+
+    final Map<String, List<String>> chapters = {};
     int count = 0;
-    decoded.forEach((_, chapters) => count += (chapters as Map).length);
-    
+    for (final book in sorted) {
+      final chaptersMap = decoded[book] as Map<String, dynamic>;
+      final chs = chaptersMap.keys.toList()
+        ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+      chapters[book] = chs;
+      count += chs.length;
+    }
+
     if (mounted) {
       setState(() {
-        bibleData = decoded;
+        _books = sorted;
+        _chapters = chapters;
         totalChapters = count;
       });
     }
@@ -46,9 +60,19 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
     super.dispose();
   }
 
+  /// none = 0 chapitres lus, partial = quelques-uns, full = tous
+  _BookReadState _bookReadState(String book) {
+    final chs = _chapters[book] ?? [];
+    if (chs.isEmpty) return _BookReadState.none;
+    final readCount = chs.where((ch) => _readChapters.contains('$book|$ch')).length;
+    if (readCount == 0) return _BookReadState.none;
+    if (readCount == chs.length) return _BookReadState.full;
+    return _BookReadState.partial;
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (bibleData.isEmpty) return const Center(child: CircularProgressIndicator());
+    if (_books.isEmpty) return const Center(child: CircularProgressIndicator());
 
     final int chaptersReadCount = _readChapters.length;
 
@@ -95,23 +119,60 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
         ),
         Expanded(
           child: ListView.builder(
-            itemCount: bibleData.keys.length,
+            itemCount: _books.length,
             itemBuilder: (context, index) {
-              final book = bibleData.keys.elementAt(index);
-              final chaptersMap = bibleData[book] as Map<String, dynamic>;
-              final chapters = chaptersMap.keys.toList();
-              chapters.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+              final book = _books[index];
+              final chapters = _chapters[book] ?? [];
+              final bookState = _bookReadState(book);
 
               return ExpansionTile(
-                title: Text(book, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Row(
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: () => DatabaseService.toggleBookReadStatus(book),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          bookState == _BookReadState.full
+                              ? Icons.check_box
+                              : bookState == _BookReadState.partial
+                                  ? Icons.indeterminate_check_box
+                                  : Icons.check_box_outline_blank,
+                          color: bookState == _BookReadState.none
+                              ? Colors.grey
+                              : Colors.indigo,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        book,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text(
+                      '${chapters.where((ch) => _readChapters.contains('$book|$ch')).length}/${chapters.length}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: bookState == _BookReadState.full
+                            ? Colors.indigo
+                            : Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                ),
                 children: chapters.map((ch) {
-                  final key = "$book|$ch";
+                  final key = '$book|$ch';
                   final isRead = _readChapters.contains(key);
                   return ListTile(
-                    title: Text("Chapitre $ch"),
+                    title: Text('Chapitre $ch'),
                     onTap: () => widget.onChapterTap?.call(book, ch),
                     trailing: Checkbox(
                       value: isRead,
+                      activeColor: Colors.indigo,
                       onChanged: (_) => DatabaseService.toggleChapterReadStatus(book, int.parse(ch)),
                     ),
                   );
@@ -124,3 +185,5 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
     );
   }
 }
+
+enum _BookReadState { none, partial, full }

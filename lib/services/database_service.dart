@@ -219,4 +219,14 @@ class DatabaseService {
       return fullyReadKeys;
     });
   }
+
+  /// Marque tous les chapitres d'un livre comme lus ou non lus.
+  /// Si tous les chapitres sont déjà lus, les passe à non lus (toggle).
+  static Future<void> toggleBookReadStatus(String book) async {
+    final verses = await (db.select(db.verses)..where((t) => t.book.equals(book))).get();
+    if (verses.isEmpty) return;
+    final allRead = verses.every((v) => v.isChapterRead);
+    await (db.update(db.verses)..where((t) => t.book.equals(book)))
+        .write(VersesCompanion(isChapterRead: Value(!allRead)));
+  }
 }
