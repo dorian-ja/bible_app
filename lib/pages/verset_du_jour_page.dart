@@ -161,7 +161,7 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.35),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -175,7 +175,7 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         letterSpacing: 1.2,
                       ),
                       textAlign: TextAlign.center,

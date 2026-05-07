@@ -79,7 +79,7 @@ ThemeData _buildTheme(Brightness brightness) {
       centerTitle: false,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      indicatorColor: kPrimary.withOpacity(isLight ? 0.15 : 0.3),
+      indicatorColor: kPrimary.withValues(alpha: isLight ? 0.15 : 0.3),
     ),
     cardTheme: CardThemeData(
       elevation: 2,
@@ -91,11 +91,11 @@ ThemeData _buildTheme(Brightness brightness) {
       fillColor: isLight ? Colors.white : null,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: kPrimary.withOpacity(0.3)),
+        borderSide: BorderSide(color: kPrimary.withValues(alpha: 0.3)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: kPrimary.withOpacity(0.3)),
+        borderSide: BorderSide(color: kPrimary.withValues(alpha: 0.3)),
       ),
       focusedBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -116,7 +116,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   String? redirectedBook;
   String? redirectedChapter;
-  bool _isAppInitialized = false;
   bool _splashVisible = true;
   String _initializationMessage = 'Initialisation...';
   String _lectureSubtitle = '';
@@ -185,7 +184,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
     await _splashCtrl.reverse();
     if (mounted) {
       setState(() {
-        _isAppInitialized = true;
         _splashVisible = false;
       });
     }

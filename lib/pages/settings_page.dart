@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/notification_service.dart';
-import '../services/theme_service.dart';
 import '../main.dart' show themeService;
 
 class SettingsPage extends StatefulWidget {

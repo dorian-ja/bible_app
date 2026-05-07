@@ -263,7 +263,7 @@ class _TestamentRing extends StatelessWidget {
               CircularProgressIndicator(
                 value: pct,
                 strokeWidth: 7,
-                backgroundColor: color.withOpacity(0.15),
+                backgroundColor: color.withValues(alpha: 0.15),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
               Center(

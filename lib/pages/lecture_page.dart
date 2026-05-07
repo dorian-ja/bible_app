@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
-import '../services/theme_service.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
 import '../main.dart' show themeService;
