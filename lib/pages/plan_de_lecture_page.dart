@@ -138,8 +138,6 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
               const SizedBox(height: 6),
               LinearProgressIndicator(
                 value: totalChapters > 0 ? chaptersReadCount / totalChapters : 0,
-                backgroundColor: Colors.grey[300],
-                color: Colors.indigo,
                 minHeight: 8,
               ),
               const SizedBox(height: 12),
@@ -188,8 +186,8 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
                                   ? Icons.indeterminate_check_box
                                   : Icons.check_box_outline_blank,
                           color: bookState == _BookReadState.none
-                              ? Colors.grey
-                              : Colors.indigo,
+                              ? Theme.of(context).colorScheme.outline
+                              : Theme.of(context).colorScheme.primary,
                           size: 22,
                         ),
                       ),
@@ -205,8 +203,8 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
                       style: TextStyle(
                         fontSize: 13,
                         color: bookState == _BookReadState.full
-                            ? Colors.indigo
-                            : Colors.grey[600],
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.outline,
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -220,7 +218,7 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
                     onTap: () => widget.onChapterTap?.call(book, ch),
                     trailing: Checkbox(
                       value: isRead,
-                      activeColor: Colors.indigo,
+                      activeColor: Theme.of(context).colorScheme.primary,
                       onChanged: (_) => DatabaseService.toggleChapterReadStatus(book, int.parse(ch)),
                     ),
                   );

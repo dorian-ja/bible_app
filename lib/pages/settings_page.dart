@@ -63,7 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Text(
                     'Rappels du verset du jour',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
                 SwitchListTile(
@@ -82,7 +82,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Text(
                     'Apparence',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
                 Padding(
@@ -117,7 +117,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         children: [
                           const Text('Taille du texte biblique', style: TextStyle(fontWeight: FontWeight.w600)),
                           Text('${_fontSize.round()} pt',
-                              style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.indigo)),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: Theme.of(context).colorScheme.primary,
+                              )),
                         ],
                       ),
                       Slider(
@@ -155,35 +158,41 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.info_outline, size: 18, color: Colors.indigo.shade400),
+                          Icon(Icons.info_outline, size: 18,
+                              color: Theme.of(context).colorScheme.primary),
                           const SizedBox(width: 6),
-                          const Text('Comment cela fonctionne', style: TextStyle(fontWeight: FontWeight.w600)),
+                          const Text('Comment cela fonctionne',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         '• 7h00 : invitation à découvrir votre verset du jour.\n'
                         '• 12h00 : rappel envoyé uniquement si le verset n\'a pas '
                         'encore été consulté dans la journée.\n'
                         '• Le verset est considéré comme « lu » dès l\'ouverture '
                         'de l\'onglet « Verset du jour ».',
-                        style: TextStyle(color: Colors.black87, height: 1.4),
+                        style: const TextStyle(height: 1.4),
                       ),
                       if (kIsWeb) ...[
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.amber.shade50,
+                            color: Theme.of(context).colorScheme.secondaryContainer,
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.amber.shade200),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Sur navigateur web, les rappels apparaissent sous forme '
                             'de bannière à l\'ouverture de l\'application '
                             '(les notifications système ne sont pas possibles sans '
                             'serveur dédié).',
-                            style: TextStyle(fontSize: 13),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSecondaryContainer,
+                            ),
                           ),
                         ),
                       ],

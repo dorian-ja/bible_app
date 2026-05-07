@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -65,6 +66,22 @@ ThemeData _buildTheme(Brightness brightness) {
     seedColor: kPrimary,
     brightness: brightness,
   ).copyWith(secondary: kAccent);
+
+  // Barre de statut/navigation système
+  final overlayStyle = isLight
+      ? SystemUiOverlayStyle(
+          statusBarColor: kPrimary,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: colorScheme.surfaceContainerLowest,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        )
+      : SystemUiOverlayStyle(
+          statusBarColor: colorScheme.surface,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: colorScheme.surfaceContainerLowest,
+          systemNavigationBarIconBrightness: Brightness.light,
+        );
+
   return ThemeData(
     useMaterial3: true,
     colorScheme: colorScheme,
@@ -77,6 +94,7 @@ ThemeData _buildTheme(Brightness brightness) {
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: false,
+      systemOverlayStyle: overlayStyle,
     ),
     navigationBarTheme: NavigationBarThemeData(
       indicatorColor: kPrimary.withValues(alpha: isLight ? 0.15 : 0.3),
