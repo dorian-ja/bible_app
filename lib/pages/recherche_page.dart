@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:diacritic/diacritic.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 
@@ -126,25 +127,32 @@ class _RecherchePageState extends State<RecherchePage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
           child: TextField(
             controller: keywordController,
             decoration: InputDecoration(
               labelText: 'Rechercher un mot-clé',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () => searchVerses(keywordController.text)),
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: keywordController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        keywordController.clear();
+                        searchVerses('');
+                      })
+                  : null,
             ),
             onSubmitted: (v) => searchVerses(v),
+            onChanged: (_) => setState(() {}),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: TextField(
             controller: refController,
             decoration: InputDecoration(
-              labelText: 'Accès direct (ex: Jean 3:16)',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(icon: const Icon(Icons.menu_book), onPressed: () => searchByReference(refController.text)),
+              labelText: 'Accès direct (ex : Jean 3:16)',
+              prefixIcon: const Icon(Icons.menu_book_outlined),
             ),
             onSubmitted: (v) => searchByReference(v),
           ),
@@ -153,19 +161,71 @@ class _RecherchePageState extends State<RecherchePage> {
           child: isSearching
               ? const Center(child: CircularProgressIndicator())
               : searchResults.isEmpty
-                  ? Center(child: Text(query.isEmpty ? 'Entrez un mot ou une référence.' : 'Aucun verset trouvé.'))
+                  ? Center(
+                      child: Text(query.isEmpty
+                          ? 'Entrez un mot ou une référence.'
+                          : 'Aucun verset trouvé.'),
+                    )
                   : ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
                       itemCount: searchResults.length,
                       itemBuilder: (context, index) {
                         final verse = searchResults[index];
-                        return ListTile(
-                          title: Text('${verse.book} ${verse.chapter}:${verse.verse}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(verse.textContent),
-                          trailing: IconButton(
-                            icon: Icon(verse.isFavorite ? Icons.star : Icons.star_border, color: verse.isFavorite ? Colors.amber : null),
-                            onPressed: () => _toggleFavorite(verse),
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => widget.onVerseTap
+                                ?.call(verse.book, verse.chapter.toString()),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${verse.book}\u00a0${verse.chapter}:\u00a0${verse.verse}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            letterSpacing: 0.4,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          verse.textContent,
+                                          style: GoogleFonts.lora(
+                                              fontSize: 14, height: 1.55),
+                                          maxLines: 4,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      verse.isFavorite
+                                          ? Icons.star
+                                          : Icons.star_outline,
+                                      color: verse.isFavorite
+                                          ? Colors.amber
+                                          : null,
+                                    ),
+                                    onPressed: () => _toggleFavorite(verse),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          onTap: () => widget.onVerseTap?.call(verse.book, verse.chapter.toString()),
                         );
                       },
                     ),

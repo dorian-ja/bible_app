@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -137,69 +138,142 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
   @override
   Widget build(BuildContext context) {
     if (_currentVerse == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "${_currentVerse!.book} ${_currentVerse!.chapter}:${_currentVerse!.verse}",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "“${_currentVerse!.textContent}”",
-              style: const TextStyle(fontSize: 18),
-              textAlign: TextAlign.center,
-            ),
-            if (_currentVerse!.noteText != null && _currentVerse!.noteText!.isNotEmpty)
+    return SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            children: [
+              // ---- Carte gradient ----
               Container(
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
+                width: double.infinity,
                 decoration: BoxDecoration(
-                  color: parseNoteColor(_currentVerse!.noteColor) ?? Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.secondary,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  _currentVerse!.noteText!,
-                  style: const TextStyle(fontStyle: FontStyle.italic),
-                  textAlign: TextAlign.center,
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  children: [
+                    Text(
+                      '${_currentVerse!.book}\u00a0${_currentVerse!.chapter}\u00a0:\u00a0${_currentVerse!.verse}',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        letterSpacing: 1.2,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      '\u201c${_currentVerse!.textContent}\u201d',
+                      style: GoogleFonts.lora(
+                        fontSize: 19,
+                        color: Colors.white,
+                        height: 1.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(
-                  iconSize: 36,
-                  icon: Icon(
-                    _currentVerse!.isFavorite ? Icons.star : Icons.star_border,
-                    color: _currentVerse!.isFavorite ? Colors.amber : Colors.grey,
+              // ---- Note personnelle ----
+              if (_currentVerse!.noteText != null && _currentVerse!.noteText!.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: parseNoteColor(_currentVerse!.noteColor) ??
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  onPressed: () => DatabaseService.toggleFavorite(_currentVerse!),
+                  child: Text(
+                    _currentVerse!.noteText!,
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit_note, size: 36),
-                  onPressed: _showNoteDialog,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.share, size: 36),
-                  onPressed: () => SharePlus.instance.share(ShareParams(text: "${_currentVerse!.book} ${_currentVerse!.chapter}:${_currentVerse!.verse}\n\"${_currentVerse!.textContent}\"")),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => widget.onVerseTap?.call(_currentVerse!.book, _currentVerse!.chapter.toString()),
-              icon: const Icon(Icons.menu_book),
-              label: const Text("Lire le chapitre complet"),
-            ),
+              const SizedBox(height: 28),
+              // ---- Actions ----
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _ActionButton(
+                    icon: _currentVerse!.isFavorite ? Icons.star : Icons.star_outline,
+                    label: _currentVerse!.isFavorite ? 'Favori' : 'Ajouter',
+                    color: _currentVerse!.isFavorite ? Colors.amber : null,
+                    onTap: () => DatabaseService.toggleFavorite(_currentVerse!),
+                  ),
+                  _ActionButton(
+                    icon: Icons.edit_note,
+                    label: 'Note',
+                    onTap: _showNoteDialog,
+                  ),
+                  _ActionButton(
+                    icon: Icons.share_outlined,
+                    label: 'Partager',
+                    onTap: () => SharePlus.instance.share(ShareParams(
+                      text: '${_currentVerse!.book} ${_currentVerse!.chapter}:${_currentVerse!.verse}\n\u201c${_currentVerse!.textContent}\u201d',
+                    )),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => widget.onVerseTap?.call(
+                    _currentVerse!.book, _currentVerse!.chapter.toString()),
+                icon: const Icon(Icons.menu_book),
+                label: const Text('Lire le chapitre complet'),
+              ),
+            ],
+          ),
+        ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final clr = color ?? Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Column(
+          children: [
+            Icon(icon, size: 28, color: clr),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 12, color: clr, fontWeight: FontWeight.w600)),
           ],
         ),
       ),

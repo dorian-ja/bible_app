@@ -2,22 +2,26 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
+import '../main.dart' show themeService;
 
 class LecturePage extends StatefulWidget {
   final String? initialBook;
   final String? initialChapter;
   final VoidCallback? onRedirectionConsumed;
+  final void Function(String title)? onTitleChange;
 
   const LecturePage({
     super.key,
     this.initialBook,
     this.initialChapter,
     this.onRedirectionConsumed,
+    this.onTitleChange,
   });
 
   @override
@@ -41,7 +45,12 @@ class _LecturePageState extends State<LecturePage> {
   @override
   void initState() {
     super.initState();
+    themeService.addListener(_onThemeChanged);
     _initializePage();
+  }
+
+  void _onThemeChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -57,9 +66,52 @@ class _LecturePageState extends State<LecturePage> {
 
   @override
   void dispose() {
+    themeService.removeListener(_onThemeChanged);
     _chapterVersesSubscription?.cancel();
     _chapterReadStatusSubscription?.cancel();
     super.dispose();
+  }
+
+  void _goToPreviousChapter() {
+    if (selectedChapter == null || _chapters.isEmpty) return;
+    final idx = _chapters.indexOf(selectedChapter!);
+    if (idx > 0) {
+      selectedChapter = _chapters[idx - 1];
+      _loadAndWatchVersesForChapter(selectedBook!, selectedChapter!);
+      _subscribeToChapterReadStatus(selectedBook!, selectedChapter!);
+      setState(() {});
+    } else {
+      // Premier chapitre du livre : aller au livre précédent
+      final bookIdx = _books.indexOf(selectedBook!);
+      if (bookIdx > 0) {
+        setState(() {
+          selectedBook = _books[bookIdx - 1];
+          selectedChapter = null;
+        });
+        _loadDataForSelection();
+      }
+    }
+  }
+
+  void _goToNextChapter() {
+    if (selectedChapter == null || _chapters.isEmpty) return;
+    final idx = _chapters.indexOf(selectedChapter!);
+    if (idx < _chapters.length - 1) {
+      selectedChapter = _chapters[idx + 1];
+      _loadAndWatchVersesForChapter(selectedBook!, selectedChapter!);
+      _subscribeToChapterReadStatus(selectedBook!, selectedChapter!);
+      setState(() {});
+    } else {
+      // Dernier chapitre du livre : aller au livre suivant
+      final bookIdx = _books.indexOf(selectedBook!);
+      if (bookIdx < _books.length - 1) {
+        setState(() {
+          selectedBook = _books[bookIdx + 1];
+          selectedChapter = null;
+        });
+        _loadDataForSelection();
+      }
+    }
   }
 
   Future<void> _initializePage() async {
@@ -76,6 +128,7 @@ class _LecturePageState extends State<LecturePage> {
     }
     setState(() => _isLoading = false);
     widget.onRedirectionConsumed?.call();
+    _updateTitle();
   }
 
   Future<void> _loadDataForSelection() async {
@@ -89,7 +142,17 @@ class _LecturePageState extends State<LecturePage> {
       await _loadAndWatchVersesForChapter(selectedBook!, selectedChapter!);
       _subscribeToChapterReadStatus(selectedBook!, selectedChapter!);
     }
+    _updateTitle();
     setState(() {});
+  }
+
+  void _updateTitle() {
+    if (selectedBook != null) {
+      final t = selectedChapter != null
+          ? '$selectedBook $selectedChapter'
+          : selectedBook!;
+      widget.onTitleChange?.call(t);
+    }
   }
 
   Future<void> _loadChaptersForBook(String bookName) async {
@@ -165,9 +228,13 @@ class _LecturePageState extends State<LecturePage> {
   Widget build(BuildContext context) {
     if (_isLoading) return Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    return Scaffold(
-      appBar: AppBar(title: Text(selectedChapter != null ? '$selectedBook $selectedChapter' : selectedBook!)),
-      body: Padding(
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        final v = details.primaryVelocity ?? 0;
+        if (v < -300) _goToNextChapter();
+        if (v > 300) _goToPreviousChapter();
+      },
+      child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
@@ -178,16 +245,29 @@ class _LecturePageState extends State<LecturePage> {
                     value: selectedBook,
                     isExpanded: true,
                     items: _books.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
-                    onChanged: (v) { if (v != null) { selectedBook = v; selectedChapter = null; _loadDataForSelection(); } },
+                    onChanged: (v) {
+                      if (v != null) {
+                        selectedBook = v;
+                        selectedChapter = null;
+                        _loadDataForSelection();
+                      }
+                    },
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Expanded(
                   child: DropdownButton<String>(
                     value: selectedChapter,
                     isExpanded: true,
                     items: _chapters.map((ch) => DropdownMenuItem(value: ch, child: Text('Ch. $ch'))).toList(),
-                    onChanged: (v) { if (v != null) { selectedChapter = v; _loadAndWatchVersesForChapter(selectedBook!, v); _subscribeToChapterReadStatus(selectedBook!, v); } },
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => selectedChapter = v);
+                        _loadAndWatchVersesForChapter(selectedBook!, v);
+                        _subscribeToChapterReadStatus(selectedBook!, v);
+                        widget.onTitleChange?.call('$selectedBook $v');
+                      }
+                    },
                   ),
                 ),
               ],
@@ -211,8 +291,13 @@ class _LecturePageState extends State<LecturePage> {
                   return Container(
                     color: highlight,
                     child: ListTile(
-                      title: Text('${verse.verse}. ${verse.textContent}'),
-                      subtitle: verse.noteText != null ? Text(verse.noteText!, style: TextStyle(fontStyle: FontStyle.italic)) : null,
+                      title: Text(
+                        '${verse.verse}. ${verse.textContent}',
+                        style: GoogleFonts.lora(fontSize: themeService.bibleFontSize),
+                      ),
+                      subtitle: verse.noteText != null
+                          ? Text(verse.noteText!, style: const TextStyle(fontStyle: FontStyle.italic))
+                          : null,
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

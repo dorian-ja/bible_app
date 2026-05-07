@@ -1,6 +1,7 @@
 // lib/pages/favoris_page.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 
@@ -59,18 +60,52 @@ class _FavorisPageState extends State<FavorisPage> {
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemCount: _favoriteVerses.length,
       itemBuilder: (context, index) {
         final verse = _favoriteVerses[index];
-        return ListTile(
-          title: Text('${verse.book} ${verse.chapter}:${verse.verse}'),
-          subtitle: Text(verse.textContent), // Corrigé : textContent au lieu de text
-          trailing: IconButton(
-            icon: const Icon(Icons.star, color: Colors.amber),
-            tooltip: 'Retirer des favoris',
-            onPressed: () => _removeFavorite(verse),
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => widget.onVerseTap?.call(verse.book, verse.chapter.toString()),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${verse.book}\u00a0${verse.chapter}:\u00a0${verse.verse}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          verse.textContent,
+                          style: GoogleFonts.lora(fontSize: 14, height: 1.55),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.star, color: Colors.amber),
+                    tooltip: 'Retirer des favoris',
+                    onPressed: () => _removeFavorite(verse),
+                  ),
+                ],
+              ),
+            ),
           ),
-          onTap: () => widget.onVerseTap?.call(verse.book, verse.chapter.toString()),
         );
       },
     );

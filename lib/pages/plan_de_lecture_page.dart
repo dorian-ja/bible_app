@@ -18,6 +18,11 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
   Set<String> _readChapters = {};
   StreamSubscription? _planWatcher;
   int totalChapters = 0;
+  int _atTotalChapters = 0;
+  int _ntTotalChapters = 0;
+
+  // Premier livre du NT dans kCanonicalBookOrder
+  static const String _kFirstNtBook = 'Matthieu';
 
   @override
   void initState() {
@@ -46,6 +51,19 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
         _books = sorted;
         _chapters = chapters;
         totalChapters = count;
+        // Calculer les totaux AT / NT
+        final ntStartIdx = kCanonicalBookOrder.indexOf(_kFirstNtBook);
+        _atTotalChapters = 0;
+        _ntTotalChapters = 0;
+        for (final book in sorted) {
+          final bookIdx = kCanonicalBookOrder.indexOf(book);
+          final chs = chapters[book]?.length ?? 0;
+          if (bookIdx >= 0 && bookIdx < ntStartIdx) {
+            _atTotalChapters += chs;
+          } else {
+            _ntTotalChapters += chs;
+          }
+        }
       });
     }
 
@@ -59,6 +77,17 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
     _planWatcher?.cancel();
     super.dispose();
   }
+
+  int get _atReadChapters {
+    final ntStartIdx = kCanonicalBookOrder.indexOf(_kFirstNtBook);
+    return _readChapters.where((key) {
+      final book = key.split('|').first;
+      final idx = kCanonicalBookOrder.indexOf(book);
+      return idx >= 0 && idx < ntStartIdx;
+    }).length;
+  }
+
+  int get _ntReadChapters => _readChapters.length - _atReadChapters;
 
   /// none = 0 chapitres lus, partial = quelques-uns, full = tous
   _BookReadState _bookReadState(String book) {
@@ -79,10 +108,29 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // --- Rings AT/NT ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _TestamentRing(
+                    label: 'Ancien Testament',
+                    read: _atReadChapters,
+                    total: _atTotalChapters,
+                    color: const Color(0xFF3F51B5),
+                  ),
+                  _TestamentRing(
+                    label: 'Nouveau Testament',
+                    read: _ntReadChapters,
+                    total: _ntTotalChapters,
+                    color: const Color(0xFFFFB300),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Text(
                 'Progression : $chaptersReadCount / $totalChapters chapitres lus',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -187,3 +235,61 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
 }
 
 enum _BookReadState { none, partial, full }
+
+class _TestamentRing extends StatelessWidget {
+  final String label;
+  final int read;
+  final int total;
+  final Color color;
+
+  const _TestamentRing({
+    required this.label,
+    required this.read,
+    required this.total,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? read / total : 0.0;
+    return Column(
+      children: [
+        SizedBox(
+          width: 80,
+          height: 80,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CircularProgressIndicator(
+                value: pct,
+                strokeWidth: 7,
+                backgroundColor: color.withValues(alpha: 0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+              Center(
+                child: Text(
+                  '${(pct * 100).round()}%',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          '$read / $total ch.',
+          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+        ),
+      ],
+    );
+  }
+}
