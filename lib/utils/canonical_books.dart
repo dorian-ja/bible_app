@@ -7,7 +7,7 @@ const List<String> kCanonicalBookOrder = [
   '1 Samuel', '2 Samuel', '1 Rois', '2 Rois',
   '1 Chroniques', '2 Chroniques',
   'Esdras', 'Néhémie', 'Esther',
-  'Job', 'Psaumes', 'Proverbes', 'Ecclésiaste', 'Cantique des Cantiques',
+  'Job', 'Psaume', 'Proverbes', 'Ecclésiaste', 'Cantique Des Cantiqu',
   'Ésaïe', 'Jérémie', 'Lamentations', 'Ézéchiel', 'Daniel',
   'Osée', 'Joël', 'Amos', 'Abdias', 'Jonas', 'Michée',
   'Nahum', 'Habacuc', 'Sophonie', 'Aggée', 'Zacharie', 'Malachie',
