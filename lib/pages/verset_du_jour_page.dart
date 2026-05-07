@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../utils/featured_verses.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
 
@@ -44,37 +45,69 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
   Future<void> _loadOrGenerateVerse() async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now();
-    final keyDate = "${today.year}-${today.month}-${today.day}";
-    
+    final keyDate = '${today.year}-${today.month}-${today.day}';
+
     String? storedBook = prefs.getString('verset_book');
     String? storedChapter = prefs.getString('verset_chapter');
     String? storedVerseNum = prefs.getString('verset_verse');
     String? storedDate = prefs.getString('verset_date');
 
-    if (storedDate != keyDate || storedBook == null || storedChapter == null || storedVerseNum == null) {
-      // Générer un nouveau verset du jour
-      final bibleData = await DatabaseService.getBibleData();
-      
-      final books = bibleData.keys.toList();
-      final randomBook = books[Random().nextInt(books.length)];
-      final chaptersMap = bibleData[randomBook] as Map<String, dynamic>;
-      final chaptersKeys = chaptersMap.keys.toList();
-      final randomChapterKey = chaptersKeys[Random().nextInt(chaptersKeys.length)];
-      final versesMap = chaptersMap[randomChapterKey] as Map<String, dynamic>;
-      final versesKeys = versesMap.keys.toList();
-      final randomVerseKey = versesKeys[Random().nextInt(versesKeys.length)];
+    if (storedDate != keyDate ||
+        storedBook == null ||
+        storedChapter == null ||
+        storedVerseNum == null) {
+      // Seed déterministe par jour (unique à la date calendaire)
+      final seed = today.difference(DateTime(2024, 1, 1)).inDays;
+      final totalSlots = kCuratedVerses.length + kExtraRandomSlots;
+      final slot = seed % totalSlots;
+
+      String book;
+      int chapter;
+      int verse;
+
+      if (slot < kCuratedVerses.length) {
+        // ── Verset curatée (~80 % des jours) ──
+        final ref = kCuratedVerses[slot];
+        book = ref.book;
+        chapter = ref.chapter;
+        verse = ref.verse;
+      } else {
+        // ── Tirage pondéré (~20 % des jours) ──
+        final rng = Random(seed);
+        final bibleData = await DatabaseService.getBibleData();
+
+        // Construire le pool pondéré en filtrant les livres présents en DB
+        final weightedBooks = <String>[];
+        for (final entry in kBookWeights.entries) {
+          if (bibleData.containsKey(entry.key)) {
+            for (int i = 0; i < entry.value; i++) {
+              weightedBooks.add(entry.key);
+            }
+          }
+        }
+
+        book = weightedBooks[rng.nextInt(weightedBooks.length)];
+        final chaptersMap = bibleData[book] as Map<String, dynamic>;
+        final chapters = chaptersMap.keys.toList();
+        final chapterKey = chapters[rng.nextInt(chapters.length)];
+        final versesMap = chaptersMap[chapterKey] as Map<String, dynamic>;
+        final verseKeys = versesMap.keys.toList();
+        chapter = int.parse(chapterKey);
+        verse = int.parse(verseKeys[rng.nextInt(verseKeys.length)]);
+      }
 
       await prefs.setString('verset_date', keyDate);
-      await prefs.setString('verset_book', randomBook);
-      await prefs.setString('verset_chapter', randomChapterKey);
-      await prefs.setString('verset_verse', randomVerseKey);
-      
-      storedBook = randomBook;
-      storedChapter = randomChapterKey;
-      storedVerseNum = randomVerseKey;
+      await prefs.setString('verset_book', book);
+      await prefs.setString('verset_chapter', chapter.toString());
+      await prefs.setString('verset_verse', verse.toString());
+
+      storedBook = book;
+      storedChapter = chapter.toString();
+      storedVerseNum = verse.toString();
     }
 
-    _subscribeToVerse(storedBook, int.parse(storedChapter), int.parse(storedVerseNum));
+    _subscribeToVerse(
+        storedBook, int.parse(storedChapter), int.parse(storedVerseNum));
   }
 
   void _subscribeToVerse(String book, int chapter, int verseNum) {
