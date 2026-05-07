@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
+import '../services/tts_service.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
 import '../main.dart' show themeService;
@@ -42,15 +43,39 @@ class _LecturePageState extends State<LecturePage> {
   bool _isCurrentChapterRead = false;
   StreamSubscription? _chapterReadStatusSubscription;
 
+  final TtsService _tts = TtsService();
+  final ScrollController _scrollController = ScrollController();
+  final List<GlobalKey> _verseKeys = [];
+
   @override
   void initState() {
     super.initState();
     themeService.addListener(_onThemeChanged);
+    _tts.addListener(_onTtsChanged);
     _initializePage();
   }
 
   void _onThemeChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onTtsChanged() {
+    if (mounted) {
+      setState(() {});
+      _scrollToCurrentVerse();
+    }
+  }
+
+  void _scrollToCurrentVerse() {
+    final idx = _tts.currentVerseIndex;
+    if (idx < _verseKeys.length) {
+      final ctx = _verseKeys[idx].currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(ctx,
+            duration: const Duration(milliseconds: 300),
+            alignment: 0.3);
+      }
+    }
   }
 
   @override
@@ -67,6 +92,10 @@ class _LecturePageState extends State<LecturePage> {
   @override
   void dispose() {
     themeService.removeListener(_onThemeChanged);
+    _tts.removeListener(_onTtsChanged);
+    _tts.stop();
+    _tts.dispose();
+    _scrollController.dispose();
     _chapterVersesSubscription?.cancel();
     _chapterReadStatusSubscription?.cancel();
     super.dispose();
@@ -163,10 +192,18 @@ class _LecturePageState extends State<LecturePage> {
     final int? chapterNumber = int.tryParse(chapterNumberStr);
     if (chapterNumber == null) return;
 
+    await _tts.stop();
     await _chapterVersesSubscription?.cancel();
     _chapterVersesSubscription = DatabaseService.watchVerses(bookName, chapterNumber)
         .listen((updatedVerses) {
-      if (mounted) setState(() => _chapterVerses = updatedVerses);
+      if (mounted) {
+        setState(() {
+          _chapterVerses = updatedVerses;
+          _verseKeys
+            ..clear()
+            ..addAll(List.generate(updatedVerses.length, (_) => GlobalKey()));
+        });
+      }
     });
   }
 
@@ -226,7 +263,7 @@ class _LecturePageState extends State<LecturePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     return GestureDetector(
       onHorizontalDragEnd: (details) {
@@ -238,6 +275,7 @@ class _LecturePageState extends State<LecturePage> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
+            // ── Sélecteurs livre / chapitre ──
             Row(
               children: [
                 Expanded(
@@ -272,43 +310,67 @@ class _LecturePageState extends State<LecturePage> {
                 ),
               ],
             ),
+            // ── Barre Lu + bouton audio ──
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text('Lu'),
+                const Text('Lu'),
                 Switch(
                   value: _isCurrentChapterRead,
-                  onChanged: (v) => DatabaseService.toggleChapterReadStatus(selectedBook!, int.parse(selectedChapter!)),
+                  onChanged: (v) => DatabaseService.toggleChapterReadStatus(
+                      selectedBook!, int.parse(selectedChapter!)),
                 ),
+                const Spacer(),
+                _AudioPlayerBar(tts: _tts, verses: _chapterVerses),
               ],
             ),
+            // ── Liste des versets ──
             Expanded(
               child: ListView.builder(
+                controller: _scrollController,
                 itemCount: _chapterVerses.length,
                 itemBuilder: (context, index) {
                   final verse = _chapterVerses[index];
                   final highlight = parseNoteColor(verse.noteColor);
+                  final isActive = _tts.isPlaying && _tts.currentVerseIndex == index;
+                  final activeColor = Theme.of(context).colorScheme.primaryContainer;
+
                   return Container(
-                    color: highlight,
+                    key: _verseKeys.length > index ? _verseKeys[index] : null,
+                    color: isActive ? activeColor : highlight,
                     child: ListTile(
                       title: Text(
                         '${verse.verse}. ${verse.textContent}',
-                        style: GoogleFonts.lora(fontSize: themeService.bibleFontSize),
+                        style: GoogleFonts.lora(
+                          fontSize: themeService.bibleFontSize,
+                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                        ),
                       ),
                       subtitle: verse.noteText != null
-                          ? Text(verse.noteText!, style: const TextStyle(fontStyle: FontStyle.italic))
+                          ? Text(verse.noteText!,
+                              style: const TextStyle(fontStyle: FontStyle.italic))
+                          : null,
+                      onTap: () => _tts.isPlaying || _tts.state == TtsState.paused
+                          ? _tts.playFrom(index)
                           : null,
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(icon: Icon(Icons.edit_note), onPressed: () => showNoteDialogForVerse(verse)),
                           IconButton(
-                            icon: Icon(verse.isFavorite ? Icons.star : Icons.star_border, color: verse.isFavorite ? Colors.amber : null),
+                            icon: const Icon(Icons.edit_note),
+                            onPressed: () => showNoteDialogForVerse(verse),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              verse.isFavorite ? Icons.star : Icons.star_border,
+                              color: verse.isFavorite ? Colors.amber : null,
+                            ),
                             onPressed: () => DatabaseService.toggleFavorite(verse),
                           ),
                           IconButton(
                             icon: const Icon(Icons.share),
-                            onPressed: () => SharePlus.instance.share(ShareParams(text: '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"')),
+                            onPressed: () => SharePlus.instance.share(ShareParams(
+                                text:
+                                    '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"')),
                           ),
                         ],
                       ),
@@ -320,6 +382,113 @@ class _LecturePageState extends State<LecturePage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Widget barre de lecture audio ──────────────────────────────────────────
+
+class _AudioPlayerBar extends StatelessWidget {
+  final TtsService tts;
+  final List<Verse> verses;
+
+  const _AudioPlayerBar({required this.tts, required this.verses});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    final isActive = tts.isPlaying || tts.state == TtsState.paused;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Voix
+        if (tts.availableVoices.isNotEmpty)
+          PopupMenuButton<TtsVoice>(
+            tooltip: 'Voix',
+            icon: Icon(Icons.record_voice_over, color: color, size: 20),
+            onSelected: (v) => tts.selectVoice(v),
+            itemBuilder: (_) => tts.availableVoices
+                .map((v) => PopupMenuItem<TtsVoice>(
+                      value: v,
+                      child: Row(
+                        children: [
+                          if (v == tts.selectedVoice)
+                            Icon(Icons.check, size: 16, color: color)
+                          else
+                            const SizedBox(width: 16),
+                          const SizedBox(width: 6),
+                          Text(v.displayName),
+                        ],
+                      ),
+                    ))
+                .toList(),
+          ),
+        // Vitesse
+        if (isActive)
+          PopupMenuButton<double>(
+            tooltip: 'Vitesse',
+            initialValue: tts.speed,
+            icon: Text('${tts.speed}×',
+                style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
+            onSelected: (v) => tts.setSpeed(v),
+            itemBuilder: (_) => [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+                .map((v) => PopupMenuItem(value: v, child: Text('$v×')))
+                .toList(),
+          ),
+        // ⏮
+        if (isActive)
+          IconButton(
+            icon: const Icon(Icons.skip_previous),
+            color: color,
+            tooltip: 'Verset précédent',
+            onPressed: tts.skipPrevious,
+          ),
+        // ▶ / ⏸ / ■
+        IconButton(
+          icon: Icon(tts.isPlaying
+              ? Icons.pause_circle_filled
+              : tts.state == TtsState.paused
+                  ? Icons.play_circle_filled
+                  : Icons.play_circle_outline),
+          color: color,
+          iconSize: 32,
+          tooltip: tts.isPlaying
+              ? 'Pause'
+              : tts.state == TtsState.paused
+                  ? 'Reprendre'
+                  : 'Lire le chapitre',
+          onPressed: () {
+            if (verses.isEmpty) return;
+            if (tts.isPlaying) {
+              tts.pause();
+            } else if (tts.state == TtsState.paused) {
+              tts.resume();
+            } else {
+              tts.loadAndPlay(
+                verses: verses.map((v) => v.textContent).toList(),
+                verseNumbers: verses.map((v) => v.verse).toList(),
+              );
+            }
+          },
+        ),
+        // ⏭
+        if (isActive)
+          IconButton(
+            icon: const Icon(Icons.skip_next),
+            color: color,
+            tooltip: 'Verset suivant',
+            onPressed: tts.skipNext,
+          ),
+        // ■ stop
+        if (isActive)
+          IconButton(
+            icon: const Icon(Icons.stop),
+            color: color,
+            tooltip: 'Arrêter',
+            onPressed: tts.stop,
+          ),
+      ],
     );
   }
 }
