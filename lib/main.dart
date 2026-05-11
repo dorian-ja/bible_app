@@ -189,11 +189,26 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
   }
 
   Future<void> _initializeApp() async {
-    final isImportNeeded = !await DatabaseService.isBibleImported();
-    if (isImportNeeded) {
-      setState(() => _initializationMessage = 'Importation de la Bible...');
-      await DatabaseService.importBibleFromJson();
+    try {
+      final isImportNeeded = !await DatabaseService.isBibleImported()
+          .timeout(const Duration(seconds: 15));
+      if (isImportNeeded) {
+        setState(() => _initializationMessage = 'Importation de la Bible...');
+        await DatabaseService.importBibleFromJson()
+            .timeout(const Duration(minutes: 3));
+      }
+      setState(() => _initializationMessage = 'Préparation de la recherche...');
+      await DatabaseService.ensureNormalizedText()
+          .timeout(const Duration(minutes: 2));
+    } catch (e) {
+      debugPrint('Erreur initialisation: $e');
+      if (mounted) {
+        setState(() => _initializationMessage =
+            'Erreur de chargement.\nVeuillez recharger la page.');
+      }
+      return;
     }
+
     await Future.delayed(const Duration(milliseconds: 900));
     String? webReminder;
     if (kIsWeb) {
