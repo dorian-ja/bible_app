@@ -17,7 +17,6 @@ import 'pages/favoris_page.dart';
 import 'pages/recherche_page.dart';
 import 'pages/plan_de_lecture_page.dart';
 import 'pages/settings_page.dart';
-import 'pages/carnet_de_prieres_page.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -195,7 +194,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
       setState(() => _initializationMessage = 'Importation de la Bible...');
       await DatabaseService.importBibleFromJson();
     }
-    await DatabaseService.ensureNormalizedText();
     await Future.delayed(const Duration(milliseconds: 900));
     String? webReminder;
     if (kIsWeb) {
@@ -239,7 +237,7 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
     final sub = _selectedIndex == 0
         ? _lectureSubtitle
         : const ['', 'Verset du jour', 'Favoris', 'Recherche',
-            'Plan de lecture', 'Prières'][_selectedIndex];
+            'Plan de lecture'][_selectedIndex];
     return Row(
       children: [
         ClipRRect(
@@ -346,9 +344,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
       _selectedIndex == 4
           ? PlanDeLecturePage(onChapterTap: navigateToLecture)
           : const SizedBox.shrink(),
-      _selectedIndex == 5
-          ? const CarnetDePrieresPage()
-          : const SizedBox.shrink(),
     ];
 
     return MaterialApp(
@@ -399,10 +394,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
                 icon: Icon(Icons.checklist_rtl_outlined),
                 selectedIcon: Icon(Icons.checklist_rtl),
                 label: 'Plan'),
-            NavigationDestination(
-                icon: Icon(Icons.self_improvement),
-                selectedIcon: Icon(Icons.self_improvement),
-                label: 'Prières'),
           ],
         ),
       ),
