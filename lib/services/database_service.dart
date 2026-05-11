@@ -4,7 +4,6 @@ import 'package:diacritic/diacritic.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../database/database.dart';
-import '../database/database_connection.dart';
 import '../utils/canonical_books.dart';
 
 class DatabaseService {
@@ -12,7 +11,7 @@ class DatabaseService {
   static Map<String, dynamic>? _bibleCache;
 
   static AppDatabase get db {
-    _db ??= createAppDatabase();
+    _db ??= AppDatabase();
     return _db!;
   }
 
@@ -58,7 +57,6 @@ class DatabaseService {
                   chapter: chapterInt,
                   verse: verseNumInt,
                   textContent: verseText,
-                  textContentNormalized: Value(removeDiacritics(verseText.toLowerCase())),
                   isFavorite: const Value(false),
                   isChapterRead: const Value(false),
                 ));
@@ -130,44 +128,24 @@ class DatabaseService {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) return [];
     final normalizedKeyword = removeDiacritics(trimmed.toLowerCase());
-    return (db.select(db.verses)
-          ..where((t) => t.textContentNormalized.like('%$normalizedKeyword%')))
-        .get();
-  }
-
-  /// Backfill de textContentNormalized pour les utilisateurs existants (migration v3).
-  static Future<void> ensureNormalizedText() async {
-    final needsBackfill = await (db.select(db.verses)
-          ..where((t) => t.textContentNormalized.equals(''))
-          ..limit(1))
-        .getSingleOrNull();
-    if (needsBackfill == null) return;
-
-    final verses = await (db.select(db.verses)
-          ..where((t) => t.textContentNormalized.equals('')))
-        .get();
-    await db.batch((batch) {
-      for (final v in verses) {
-        batch.update(
-          db.verses,
-          VersesCompanion(
-            textContentNormalized: Value(removeDiacritics(v.textContent.toLowerCase())),
-          ),
-          where: (t) => t.id.equals(v.id),
-        );
-      }
-    });
+    final allVerses = await db.select(db.verses).get();
+    return allVerses
+        .where((v) => removeDiacritics(v.textContent.toLowerCase()).contains(normalizedKeyword))
+        .toList();
   }
 
   static Future<bool> isChapterRead(String book, int chapter) async {
-    final totalExpr = countAll();
-    final unreadExpr = countAll(filter: db.verses.isChapterRead.equals(false));
-    final q = db.selectOnly(db.verses)
-      ..where(db.verses.book.equals(book) & db.verses.chapter.equals(chapter))
-      ..addColumns([totalExpr, unreadExpr]);
-    final row = await q.getSingle();
-    final total = row.read(totalExpr)!;
-    return total > 0 && row.read(unreadExpr)! == 0;
+    final unreadRows = await (db.select(db.verses)
+          ..where((t) => t.book.equals(book) & t.chapter.equals(chapter) & t.isChapterRead.equals(false)))
+        .get();
+
+    if (unreadRows.isEmpty) {
+      final allRows = await (db.select(db.verses)
+            ..where((t) => t.book.equals(book) & t.chapter.equals(chapter)))
+          .get();
+      return allRows.isNotEmpty;
+    }
+    return false;
   }
 
   static Future<void> toggleChapterReadStatus(String book, int chapter) async {
@@ -199,25 +177,47 @@ class DatabaseService {
         .watchSingleOrNull();
   }
 
-  static Set<String> _computeFullyReadKeys(List<Verse> verses) {
-    final chapterCounts = <String, (int total, int read)>{};
-    for (final v in verses) {
-      final key = '${v.book}|${v.chapter}';
-      final current = chapterCounts[key] ?? (0, 0);
-      chapterCounts[key] = (current.$1 + 1, current.$2 + (v.isChapterRead ? 1 : 0));
-    }
-    return {
-      for (final e in chapterCounts.entries)
-        if (e.value.$1 > 0 && e.value.$1 == e.value.$2) e.key,
-    };
-  }
-
   static Future<Set<String>> getAllFullyReadChapterKeys() async {
-    return _computeFullyReadKeys(await db.select(db.verses).get());
+    final verses = await db.select(db.verses).get();
+    var chapterCounts = <String, Map<String, int>>{};
+
+    for (var verse in verses) {
+      final key = '${verse.book}|${verse.chapter}';
+      chapterCounts.putIfAbsent(key, () => {'total': 0, 'read': 0});
+      chapterCounts[key]!['total'] = chapterCounts[key]!['total']! + 1;
+      if (verse.isChapterRead) {
+        chapterCounts[key]!['read'] = chapterCounts[key]!['read']! + 1;
+      }
+    }
+
+    Set<String> fullyReadKeys = {};
+    chapterCounts.forEach((key, counts) {
+      if (counts['total']! > 0 && counts['total'] == counts['read']) {
+        fullyReadKeys.add(key);
+      }
+    });
+    return fullyReadKeys;
   }
 
   static Stream<Set<String>> watchAllFullyReadChapterKeys() {
-    return db.select(db.verses).watch().map(_computeFullyReadKeys);
+    return db.select(db.verses).watch().map((verses) {
+      var chapterCounts = <String, Map<String, int>>{};
+      for (var verse in verses) {
+        final key = '${verse.book}|${verse.chapter}';
+        chapterCounts.putIfAbsent(key, () => {'total': 0, 'read': 0});
+        chapterCounts[key]!['total'] = chapterCounts[key]!['total']! + 1;
+        if (verse.isChapterRead) {
+          chapterCounts[key]!['read'] = chapterCounts[key]!['read']! + 1;
+        }
+      }
+      Set<String> fullyReadKeys = {};
+      chapterCounts.forEach((key, counts) {
+        if (counts['total']! > 0 && counts['total'] == counts['read']) {
+          fullyReadKeys.add(key);
+        }
+      });
+      return fullyReadKeys;
+    });
   }
 
   /// Marque tous les chapitres d'un livre comme lus ou non lus.
