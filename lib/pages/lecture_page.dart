@@ -352,25 +352,46 @@ class _LecturePageState extends State<LecturePage> {
                       onTap: () => _tts.isPlaying || _tts.state == TtsState.paused
                           ? _tts.playFrom(index)
                           : null,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_note),
-                            onPressed: () => showNoteDialogForVerse(verse),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              verse.isFavorite ? Icons.star : Icons.star_border,
-                              color: verse.isFavorite ? Colors.amber : null,
+                      trailing: PopupMenuButton<_VerseAction>(
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (action) {
+                          switch (action) {
+                            case _VerseAction.note:
+                              showNoteDialogForVerse(verse);
+                            case _VerseAction.favorite:
+                              DatabaseService.toggleFavorite(verse);
+                            case _VerseAction.share:
+                              SharePlus.instance.share(ShareParams(
+                                  text: '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: _VerseAction.note,
+                            child: ListTile(
+                              leading: Icon(Icons.edit_note),
+                              title: Text('Note'),
+                              contentPadding: EdgeInsets.zero,
                             ),
-                            onPressed: () => DatabaseService.toggleFavorite(verse),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.share),
-                            onPressed: () => SharePlus.instance.share(ShareParams(
-                                text:
-                                    '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"')),
+                          PopupMenuItem(
+                            value: _VerseAction.favorite,
+                            child: ListTile(
+                              leading: Icon(
+                                verse.isFavorite ? Icons.star : Icons.star_border,
+                                color: verse.isFavorite ? Colors.amber : null,
+                              ),
+                              title: Text(verse.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: _VerseAction.share,
+                            child: ListTile(
+                              leading: Icon(Icons.share),
+                              title: Text('Partager'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
                           ),
                         ],
                       ),
@@ -385,6 +406,8 @@ class _LecturePageState extends State<LecturePage> {
     );
   }
 }
+
+enum _VerseAction { note, favorite, share }
 
 // ── Widget barre de lecture audio ──────────────────────────────────────────
 
