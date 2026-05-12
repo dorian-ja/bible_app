@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/database.dart';
+import '../services/database_service.dart';
 import '../utils/prayer_constants.dart';
 import 'reminder_time_selector.dart';
 
@@ -26,6 +27,18 @@ class _PrayerEditDialogState extends State<PrayerEditDialog> {
   late int? selectedCategoryId;
   late bool hasReminder;
   late DateTime? reminderTime;
+  late List<PrayerCategory> _categories;
+
+  static const _colorOptions = [
+    ('Bleu', '0xFF42A5F5'),
+    ('Vert', '0xFF66BB6A'),
+    ('Orange', '0xFFFFA726'),
+    ('Violet', '0xFFAB47BC'),
+    ('Rouge', '0xFFEF5350'),
+    ('Jaune', '0xFFFFEE58'),
+    ('Rose', '0xFFEC407A'),
+    ('Cyan', '0xFF26C6DA'),
+  ];
 
   @override
   void initState() {
@@ -36,6 +49,79 @@ class _PrayerEditDialogState extends State<PrayerEditDialog> {
     selectedCategoryId = widget.prayer?.categoryId;
     hasReminder = widget.prayer?.hasReminder ?? false;
     reminderTime = widget.prayer?.reminderTime;
+    _categories = List.of(widget.categories);
+  }
+
+  Future<void> _showNewCategoryDialog() async {
+    final nameController = TextEditingController();
+    String selectedColor = _colorOptions.first.$2;
+
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Nouvelle catégorie'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nom *',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _colorOptions.map((option) {
+                  final color = hexToColor(option.$2);
+                  final isSelected = selectedColor == option.$2;
+                  return GestureDetector(
+                    onTap: () => setDialogState(() => selectedColor = option.$2),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: isSelected ? Border.all(width: 3, color: Colors.black54) : null,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.trim().isEmpty) return;
+                final id = await DatabaseService.db.insertCategory(
+                  nameController.text.trim(),
+                  selectedColor,
+                );
+                if (ctx.mounted) Navigator.pop(ctx, true);
+                if (mounted) {
+                  setState(() {
+                    _categories.add(PrayerCategory(id: id, name: nameController.text.trim(), color: selectedColor));
+                    selectedCategoryId = id;
+                  });
+                }
+              },
+              child: const Text('Créer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameController.dispose();
   }
 
   @override
@@ -85,36 +171,48 @@ class _PrayerEditDialogState extends State<PrayerEditDialog> {
               onChanged: (value) => setState(() => selectedPriority = value ?? 1),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<int?>(
-              value: selectedCategoryId,
-              decoration: const InputDecoration(
-                labelText: 'Catégorie (optionnel)',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                DropdownMenuItem<int?>(
-                  value: null,
-                  child: Text('Aucune catégorie'),
-                ),
-                ...widget.categories.map((cat) => DropdownMenuItem<int?>(
-                      value: cat.id,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: hexToColor(cat.color),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(cat.name),
-                        ],
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int?>(
+                    value: selectedCategoryId,
+                    decoration: const InputDecoration(
+                      labelText: 'Catégorie (optionnel)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Aucune catégorie'),
                       ),
-                    )),
+                      ..._categories.map((cat) => DropdownMenuItem<int?>(
+                            value: cat.id,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: hexToColor(cat.color),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(cat.name),
+                              ],
+                            ),
+                          )),
+                    ],
+                    onChanged: (value) => setState(() => selectedCategoryId = value),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  tooltip: 'Nouvelle catégorie',
+                  onPressed: _showNewCategoryDialog,
+                ),
               ],
-              onChanged: (value) => setState(() => selectedCategoryId = value),
             ),
             const SizedBox(height: 12),
             ReminderTimeSelector(

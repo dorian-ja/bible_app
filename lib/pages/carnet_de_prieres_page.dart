@@ -107,11 +107,6 @@ class _CarnetDePrieresPageState extends State<CarnetDePrieresPage> {
               MaterialPageRoute(builder: (_) => const PrayerStatsPage()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Ajouter une prière',
-            onPressed: () => _showPrayerDialog(),
-          ),
         ],
       ),
       body: Column(
@@ -159,6 +154,7 @@ class _CarnetDePrieresPageState extends State<CarnetDePrieresPage> {
                     if (!snapshot.hasData) return const SizedBox.shrink();
                     final categories = snapshot.data!;
                     return DropdownMenu<int?>(
+                      key: ValueKey(categories.map((c) => c.id).join(',')),
                       initialSelection: selectedCategoryFilter,
                       onSelected: (value) => setState(() => selectedCategoryFilter = value),
                       dropdownMenuEntries: [

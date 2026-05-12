@@ -44,11 +44,31 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
+
+  static const _defaultCategories = [
+    ('Famille', '0xFF42A5F5'),
+    ('Santé', '0xFF66BB6A'),
+    ('Travail', '0xFFFFA726'),
+    ('Personnel', '0xFFAB47BC'),
+    ('Église', '0xFFEF5350'),
+    ('Remerciements', '0xFFFFEE58'),
+  ];
+
+  Future<void> _insertDefaultCategories() async {
+    for (final (name, color) in _defaultCategories) {
+      await into(prayerCategories).insert(
+        PrayerCategoriesCompanion(name: Value(name), color: Value(color)),
+      );
+    }
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) => m.createAll(),
+    onCreate: (m) async {
+      await m.createAll();
+      await _insertDefaultCategories();
+    },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(prayers, prayers.priority);
@@ -61,6 +81,13 @@ class AppDatabase extends _$AppDatabase {
         // Migration v2 → v3 : colonne de recherche normalisée (sans accents)
         await m.addColumn(verses, verses.textContentNormalized);
         // Le backfill est effectué par DatabaseService.ensureNormalizedText()
+      }
+      if (from < 4) {
+        // Migration v3 → v4 : ajout des catégories par défaut
+        final existing = await select(prayerCategories).get();
+        if (existing.isEmpty) {
+          await _insertDefaultCategories();
+        }
       }
     },
   );
