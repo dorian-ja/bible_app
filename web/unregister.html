@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mise à jour MyOwnBible</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #4E342E;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      text-align: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 32px 24px;
+      max-width: 360px;
+    }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    p  { font-size: 15px; opacity: 0.8; line-height: 1.5; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 20px auto 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Mise à jour en cours…</h1>
+    <p>Nettoyage du cache de l'application. Tu seras redirigé automatiquement.</p>
+    <div class="spinner"></div>
+  </div>
+  <script>
+    async function unregisterAndRedirect() {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(r => r.unregister()));
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      window.location.replace('/');
+    }
+    unregisterAndRedirect();
+  </script>
+</body>
+</html>
