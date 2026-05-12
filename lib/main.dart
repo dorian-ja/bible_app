@@ -99,6 +99,21 @@ ThemeData _buildTheme(Brightness brightness) {
     ),
     navigationBarTheme: NavigationBarThemeData(
       indicatorColor: kPrimary.withValues(alpha: isLight ? 0.15 : 0.3),
+      backgroundColor: isLight ? kCreamBg : null,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: isLight ? kCreamBg : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: isLight ? kCreamBg : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: isLight ? kCreamBg : null,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
     ),
     cardTheme: CardThemeData(
       elevation: 2,

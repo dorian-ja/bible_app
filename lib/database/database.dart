@@ -112,6 +112,66 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Prayer>> watchAllPrayers() =>
       (select(prayers)..orderBy([(t) => OrderingTerm(expression: t.priority, mode: OrderingMode.desc), (t) => OrderingTerm(expression: t.dateAdded, mode: OrderingMode.desc)])).watch();
 
+  Stream<List<Prayer>> watchFilteredPrayers({
+    bool? isAnswered,
+    int? categoryId,
+    String? searchQuery,
+  }) {
+    return (select(prayers)
+      ..where((tbl) {
+        Expression<bool> condition = const Constant(true);
+        if (isAnswered != null) condition = condition & tbl.isAnswered.equals(isAnswered);
+        if (categoryId != null) condition = condition & tbl.categoryId.equals(categoryId);
+        if (searchQuery != null && searchQuery.isNotEmpty) {
+          final q = '%${searchQuery.toLowerCase()}%';
+          condition = condition & (tbl.title.like(q) | tbl.description.like(q));
+        }
+        return condition;
+      })
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.priority, mode: OrderingMode.desc),
+        (t) => OrderingTerm(expression: t.dateAdded, mode: OrderingMode.desc),
+      ]))
+        .watch();
+  }
+
+  /// Cherche des versets thématiquement proches en se basant sur les mots
+  /// significatifs (5+ caractères) du verset source, hors livre courant.
+  Future<List<Verse>> findRelatedVerses(Verse sourceVerse, {int limit = 8}) async {
+    final words = sourceVerse.textContentNormalized
+        .split(RegExp(r'[^a-z]+'))
+        .where((w) => w.length >= 5)
+        .toSet()
+        .take(3)
+        .toList();
+
+    if (words.isEmpty) return [];
+
+    final results = <Verse>[];
+    final seen = <int>{sourceVerse.id};
+
+    for (final word in words) {
+      if (results.length >= limit) break;
+      final found = await (select(verses)
+            ..where((t) =>
+                t.textContentNormalized.like('%$word%') &
+                t.book.isNotValue(sourceVerse.book))
+            ..limit(limit - results.length))
+          .get();
+      for (final v in found) {
+        if (seen.add(v.id)) results.add(v);
+      }
+    }
+
+    return results;
+  }
+
+  Future<List<Prayer>> getPrayersWithReminders() {
+    return (select(prayers)
+      ..where((tbl) => tbl.hasReminder.equals(true) & tbl.isAnswered.equals(false)))
+        .get();
+  }
+
   Stream<List<Prayer>> watchPrayersByStatus({required bool answered}) =>
       (select(prayers)
         ..where((tbl) => tbl.isAnswered.equals(answered))
