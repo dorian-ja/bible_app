@@ -198,11 +198,30 @@ class _LecturePageState extends State<LecturePage> {
   void _scrollToVerse(int verseNum) {
     final index = _chapterVerses.indexWhere((v) => v.verse == verseNum);
     if (index < 0 || index >= _verseKeys.length) return;
+    if (!_scrollController.hasClients) return;
+
     final ctx = _verseKeys[index].currentContext;
-    if (ctx != null) {
-      Scrollable.ensureVisible(ctx,
-          duration: const Duration(milliseconds: 400), alignment: 0.2);
-    }
+    if (ctx == null) return;
+
+    final ro = ctx.findRenderObject();
+    if (ro == null || !ro.attached) return;
+
+    // Calcule l'offset exact à partir de la position du RenderBox dans le scroll
+    final listRO = _scrollController.position.context.storageContext.findRenderObject();
+    if (listRO is! RenderBox) return;
+    if (ro is! RenderBox) return;
+
+    final localOffset = ro.localToGlobal(Offset.zero, ancestor: listRO);
+    final viewportH = _scrollController.position.viewportDimension;
+    final target = (_scrollController.offset + localOffset.dy - viewportH * 0.15)
+        .clamp(_scrollController.position.minScrollExtent,
+               _scrollController.position.maxScrollExtent);
+
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _loadAndWatchVersesForChapter(
@@ -235,10 +254,16 @@ class _LecturePageState extends State<LecturePage> {
         // Les émissions suivantes (toggle favori, note…) ne bougent pas l'écran.
         if (_isFirstChapterEmission) {
           _isFirstChapterEmission = false;
+          final tv = _targetVerse;
+          _targetVerse = null;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_targetVerse != null) {
-              _scrollToVerse(_targetVerse!);
-              _targetVerse = null;
+            if (!mounted) return;
+            if (tv != null) {
+              // Double callback : le premier frame construit la liste,
+              // le second garantit que le layout est pleinement terminé.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _scrollToVerse(tv);
+              });
             } else if (_scrollController.hasClients) {
               _scrollController.jumpTo(0);
             }
