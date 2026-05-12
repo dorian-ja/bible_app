@@ -15,7 +15,7 @@ import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
 
 class VersetDuJourPage extends StatefulWidget {
-  final void Function(String book, String chapter)? onVerseTap;
+  final void Function(String book, String chapter, [int verse])? onVerseTap;
 
   const VersetDuJourPage({super.key, this.onVerseTap});
 
@@ -270,7 +270,7 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: () => widget.onVerseTap?.call(
-                    _currentVerse!.book, _currentVerse!.chapter.toString()),
+                    _currentVerse!.book, _currentVerse!.chapter.toString(), _currentVerse!.verse),
                 icon: const Icon(Icons.menu_book),
                 label: const Text('Lire le chapitre complet'),
               ),

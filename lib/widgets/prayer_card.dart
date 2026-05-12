@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../database/database.dart';
 import '../utils/prayer_constants.dart';
@@ -21,9 +22,13 @@ class PrayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final priorityColor = prayerPriorityColors[prayer.priority];
+
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         leading: category != null
             ? Container(
                 width: 12,
@@ -46,10 +51,11 @@ class PrayerCard extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: prayerPriorityColors[prayer.priority]?.withAlpha(51),
+                color: priorityColor?.withAlpha(51),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -57,72 +63,84 @@ class PrayerCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: prayerPriorityColors[prayer.priority],
+                  color: priorityColor,
                 ),
               ),
             ),
           ],
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (prayer.description?.isNotEmpty == true)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
+        children: [
+          if (prayer.description?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
                 child: Text(
                   prayer.description!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey[700]),
+                  style: TextStyle(color: Colors.grey[700], height: 1.4),
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Ajoutée: ${prayer.dateAdded.day}/${prayer.dateAdded.month}/${prayer.dateAdded.year}',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
             ),
-            if (category != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  'Catégorie: ${category!.name}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                ),
-              ),
-          ],
-        ),
-        trailing: SizedBox(
-          width: 120,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Row(
             children: [
-              IconButton(
-                icon: Icon(
-                  prayer.isAnswered ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: prayer.isAnswered ? Colors.green : null,
+              if (category != null)
+                Chip(
+                  avatar: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: hexToColor(category!.color),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  label: Text(category!.name, style: const TextStyle(fontSize: 11)),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                tooltip: prayer.isAnswered ? 'Exaucée' : 'Marquer comme exaucée',
-                onPressed: onToggleAnswered,
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                tooltip: 'Modifier',
-                onPressed: onEdit,
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18),
-                tooltip: 'Supprimer',
-                onPressed: onDelete,
-                visualDensity: VisualDensity.compact,
+              const Spacer(),
+              Text(
+                '${prayer.dateAdded.day}/${prayer.dateAdded.month}/${prayer.dateAdded.year}',
+                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
               ),
             ],
           ),
-        ),
-        isThreeLine: true,
+          const Divider(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton.icon(
+                icon: Icon(
+                  prayer.isAnswered ? Icons.check_circle : Icons.radio_button_unchecked,
+                  size: 18,
+                  color: prayer.isAnswered ? Colors.green : null,
+                ),
+                label: Text(
+                  prayer.isAnswered ? 'Exaucée' : 'En attente',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  onToggleAnswered();
+                },
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Modifier', style: TextStyle(fontSize: 12)),
+                onPressed: onEdit,
+              ),
+              TextButton.icon(
+                icon: Icon(Icons.delete_outline, size: 18, color: Colors.red[400]),
+                label: Text('Supprimer',
+                    style: TextStyle(fontSize: 12, color: Colors.red[400])),
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  onDelete();
+                },
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

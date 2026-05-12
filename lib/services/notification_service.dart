@@ -4,10 +4,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../main.dart' show flutterLocalNotificationsPlugin;
+import 'database_service.dart';
 
 /// IDs des notifications planifiées.
 const int _kMorningNotifId = 1; // 7h00 Europe/Paris (récurrent)
 const int _kNoonReminderNotifId = 2; // 12h00 Europe/Paris (ponctuel jour J si non lu)
+const int _kPrayerNotifOffset = 1000; // IDs 1000+ réservés aux rappels de prières
 
 const String _kPrefNotifEnabled = 'notif_enabled';
 const String _kPrefVerseReadDate = 'verset_du_jour_read_date'; // yyyy-MM-dd
@@ -117,6 +119,14 @@ class NotificationService {
 
   static const DarwinNotificationDetails _darwinDetails = DarwinNotificationDetails();
 
+  static const AndroidNotificationDetails _androidPrayer = AndroidNotificationDetails(
+    'prayer_reminders',
+    'Rappels de prières',
+    channelDescription: 'Rappels quotidiens pour vos prières programmées',
+    importance: Importance.defaultImportance,
+    priority: Priority.defaultPriority,
+  );
+
   static Future<void> _scheduleMorning() async {
     await flutterLocalNotificationsPlugin.cancel(_kMorningNotifId);
     final scheduled = _nextOccurrence(_kMorningHour, _kMorningMinute);
@@ -160,6 +170,47 @@ class NotificationService {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // RAPPELS DE PRIÈRES
+  // ---------------------------------------------------------------------------
+
+  static Future<void> schedulePrayerReminder(int prayerId, String prayerTitle, DateTime reminderTime) async {
+    if (kIsWeb) return;
+    final notifId = _kPrayerNotifOffset + prayerId;
+    await flutterLocalNotificationsPlugin.cancel(notifId);
+
+    final paris = _paris();
+    final nowParis = tz.TZDateTime.now(paris);
+    var scheduled = tz.TZDateTime(paris, nowParis.year, nowParis.month, nowParis.day, reminderTime.hour, reminderTime.minute);
+    if (!scheduled.isAfter(nowParis)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      notifId,
+      'Rappel de prière 🙏',
+      prayerTitle,
+      scheduled,
+      const NotificationDetails(android: _androidPrayer, iOS: _darwinDetails, macOS: _darwinDetails),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  static Future<void> cancelPrayerReminder(int prayerId) async {
+    if (kIsWeb) return;
+    await flutterLocalNotificationsPlugin.cancel(_kPrayerNotifOffset + prayerId);
+  }
+
+  static Future<void> _rescheduleAllPrayerReminders() async {
+    final prayersWithReminders = await DatabaseService.db.getPrayersWithReminders();
+    for (final prayer in prayersWithReminders) {
+      if (prayer.reminderTime != null) {
+        await schedulePrayerReminder(prayer.id, prayer.title, prayer.reminderTime!);
+      }
+    }
+  }
+
   static Future<void> cancelAll() async {
     if (kIsWeb) return;
     await flutterLocalNotificationsPlugin.cancel(_kMorningNotifId);
@@ -184,6 +235,7 @@ class NotificationService {
     }
     await _scheduleMorning();
     await _scheduleNoonReminderIfNeeded();
+    await _rescheduleAllPrayerReminders();
   }
 
   /// Pour le web : retourne un message à afficher en bannière au démarrage,

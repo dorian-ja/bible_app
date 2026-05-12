@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database.dart';
@@ -10,10 +11,12 @@ import '../services/tts_service.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
 import '../main.dart' show themeService;
+import 'immersive_lecture_page.dart';
 
 class LecturePage extends StatefulWidget {
   final String? initialBook;
   final String? initialChapter;
+  final int? initialVerse;
   final VoidCallback? onRedirectionConsumed;
   final void Function(String title)? onTitleChange;
 
@@ -21,6 +24,7 @@ class LecturePage extends StatefulWidget {
     super.key,
     this.initialBook,
     this.initialChapter,
+    this.initialVerse,
     this.onRedirectionConsumed,
     this.onTitleChange,
   });
@@ -38,6 +42,9 @@ class _LecturePageState extends State<LecturePage> {
   String? selectedChapter;
 
   bool _isLoading = true;
+  double _contentOpacity = 1.0;
+  bool _isFirstChapterEmission = false;
+  int? _targetVerse;
 
   StreamSubscription? _chapterVersesSubscription;
   bool _isCurrentChapterRead = false;
@@ -45,7 +52,7 @@ class _LecturePageState extends State<LecturePage> {
 
   final TtsService _tts = TtsService();
   final ScrollController _scrollController = ScrollController();
-  final List<GlobalKey> _verseKeys = [];
+  List<GlobalKey> _verseKeys = [];
 
   @override
   void initState() {
@@ -72,8 +79,7 @@ class _LecturePageState extends State<LecturePage> {
       final ctx = _verseKeys[idx].currentContext;
       if (ctx != null) {
         Scrollable.ensureVisible(ctx,
-            duration: const Duration(milliseconds: 300),
-            alignment: 0.3);
+            duration: const Duration(milliseconds: 300), alignment: 0.3);
       }
     }
   }
@@ -82,9 +88,11 @@ class _LecturePageState extends State<LecturePage> {
   void didUpdateWidget(covariant LecturePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if ((widget.initialBook != null && widget.initialBook != selectedBook) ||
-        (widget.initialChapter != null && widget.initialChapter != selectedChapter)) {
+        (widget.initialChapter != null &&
+            widget.initialChapter != selectedChapter)) {
       selectedBook = widget.initialBook;
       selectedChapter = widget.initialChapter;
+      _targetVerse = widget.initialVerse;
       _loadDataForSelection();
     }
   }
@@ -110,7 +118,6 @@ class _LecturePageState extends State<LecturePage> {
       _subscribeToChapterReadStatus(selectedBook!, selectedChapter!);
       setState(() {});
     } else {
-      // Premier chapitre du livre : aller au livre précédent
       final bookIdx = _books.indexOf(selectedBook!);
       if (bookIdx > 0) {
         setState(() {
@@ -131,7 +138,6 @@ class _LecturePageState extends State<LecturePage> {
       _subscribeToChapterReadStatus(selectedBook!, selectedChapter!);
       setState(() {});
     } else {
-      // Dernier chapitre du livre : aller au livre suivant
       final bookIdx = _books.indexOf(selectedBook!);
       if (bookIdx < _books.length - 1) {
         setState(() {
@@ -148,6 +154,7 @@ class _LecturePageState extends State<LecturePage> {
     _books = await DatabaseService.getBooks();
     if (_books.isNotEmpty) {
       selectedBook = widget.initialBook ?? _books.first;
+      _targetVerse = widget.initialVerse;
       await _loadChaptersForBook(selectedBook!);
       if (_chapters.isNotEmpty) {
         selectedChapter = widget.initialChapter ?? _chapters.first;
@@ -188,36 +195,96 @@ class _LecturePageState extends State<LecturePage> {
     _chapters = await DatabaseService.getChaptersForBook(bookName);
   }
 
-  Future<void> _loadAndWatchVersesForChapter(String bookName, String chapterNumberStr) async {
+  void _scrollToVerse(int verseNum) {
+    final index = _chapterVerses.indexWhere((v) => v.verse == verseNum);
+    if (index < 0 || index >= _verseKeys.length) return;
+    if (!_scrollController.hasClients) return;
+
+    final ctx = _verseKeys[index].currentContext;
+    if (ctx == null) return;
+
+    final ro = ctx.findRenderObject();
+    if (ro == null || !ro.attached) return;
+
+    // Calcule l'offset exact à partir de la position du RenderBox dans le scroll
+    final listRO = _scrollController.position.context.storageContext.findRenderObject();
+    if (listRO is! RenderBox) return;
+    if (ro is! RenderBox) return;
+
+    final localOffset = ro.localToGlobal(Offset.zero, ancestor: listRO);
+    final viewportH = _scrollController.position.viewportDimension;
+    final target = (_scrollController.offset + localOffset.dy - viewportH * 0.15)
+        .clamp(_scrollController.position.minScrollExtent,
+               _scrollController.position.maxScrollExtent);
+
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _loadAndWatchVersesForChapter(
+      String bookName, String chapterNumberStr) async {
     final int? chapterNumber = int.tryParse(chapterNumberStr);
     if (chapterNumber == null) return;
 
     await _tts.stop();
     await _chapterVersesSubscription?.cancel();
-    _chapterVersesSubscription = DatabaseService.watchVerses(bookName, chapterNumber)
-        .listen((updatedVerses) {
-      if (mounted) {
+
+    // Fade out, vider immédiatement, armer le flag première émission
+    setState(() {
+      _contentOpacity = 0.0;
+      _chapterVerses = [];
+      _verseKeys = [];
+      _isFirstChapterEmission = true;
+    });
+
+    _chapterVersesSubscription =
+        DatabaseService.watchVerses(bookName, chapterNumber).listen(
+      (updatedVerses) {
+        if (!mounted) return;
         setState(() {
           _chapterVerses = updatedVerses;
-          _verseKeys
-            ..clear()
-            ..addAll(List.generate(updatedVerses.length, (_) => GlobalKey()));
+          _verseKeys = List.generate(updatedVerses.length, (_) => GlobalKey());
+          _contentOpacity = 1.0;
         });
-      }
-    });
+
+        // Scroll uniquement à la première émission (changement de chapitre).
+        // Les émissions suivantes (toggle favori, note…) ne bougent pas l'écran.
+        if (_isFirstChapterEmission) {
+          _isFirstChapterEmission = false;
+          final tv = _targetVerse;
+          _targetVerse = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (tv != null) {
+              // Double callback : le premier frame construit la liste,
+              // le second garantit que le layout est pleinement terminé.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _scrollToVerse(tv);
+              });
+            } else if (_scrollController.hasClients) {
+              _scrollController.jumpTo(0);
+            }
+          });
+        }
+      },
+    );
   }
 
   void _subscribeToChapterReadStatus(String book, String chapterStr) {
     _chapterReadStatusSubscription?.cancel();
     final int? chapterNum = int.tryParse(chapterStr);
     if (chapterNum == null) return;
-
-    _chapterReadStatusSubscription = DatabaseService.watchChapterReadStatus(book, chapterNum).listen((isRead) {
+    _chapterReadStatusSubscription =
+        DatabaseService.watchChapterReadStatus(book, chapterNum)
+            .listen((isRead) {
       if (mounted) setState(() => _isCurrentChapterRead = isRead);
     });
   }
 
-  void showNoteDialogForVerse(Verse verse) {
+  void _showNoteDialog(Verse verse) {
     final controller = TextEditingController(text: verse.noteText ?? '');
     String? selectedColor = verse.noteColor;
 
@@ -225,23 +292,33 @@ class _LecturePageState extends State<LecturePage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
-          title: Text("Note pour ${verse.book} ${verse.chapter}:${verse.verse}"),
+          title: Text(
+              '${verse.book} ${verse.chapter}:${verse.verse}'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(controller: controller, maxLines: 3, decoration: const InputDecoration(hintText: "Votre note...")),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration:
+                    const InputDecoration(hintText: 'Votre note...'),
+              ),
               const SizedBox(height: 12),
-              const Text('Couleur de surlignage :', style: TextStyle(fontSize: 12)),
+              const Text('Surlignage :',
+                  style: TextStyle(fontSize: 12)),
               const SizedBox(height: 6),
               NoteColorPicker(
                 selectedHex: selectedColor,
-                onChanged: (hex) => setStateDialog(() => selectedColor = hex),
+                onChanged: (hex) =>
+                    setStateDialog(() => selectedColor = hex),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Annuler")),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Annuler')),
             TextButton(
               onPressed: () async {
                 final text = controller.text.trim();
@@ -253,10 +330,196 @@ class _LecturePageState extends State<LecturePage> {
                 if (!dialogContext.mounted) return;
                 Navigator.pop(dialogContext);
               },
-              child: const Text("Enregistrer"),
+              child: const Text('Enregistrer'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showConcordance(Verse verse) async {
+    final related =
+        await DatabaseService.db.findRelatedVerses(verse);
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollCtrl) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Text('Versets liés',
+                      style: GoogleFonts.lora(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  Text(
+                    '${verse.book} ${verse.chapter}:${verse.verse}',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            if (related.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(
+                    child: Text('Aucun verset lié trouvé.')),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollCtrl,
+                  itemCount: related.length,
+                  itemBuilder: (_, i) {
+                    final v = related[i];
+                    return ListTile(
+                      title: Text(
+                        '${v.book} ${v.chapter}:${v.verse}',
+                        style: GoogleFonts.lora(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        v.textContent,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          selectedBook = v.book;
+                          selectedChapter = v.chapter.toString();
+                        });
+                        _loadDataForSelection();
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerseItem(BuildContext context, int index) {
+    final verse = _chapterVerses[index];
+    final highlight = parseNoteColor(verse.noteColor);
+    final isActive = _tts.isPlaying && _tts.currentVerseIndex == index;
+    final activeColor = Theme.of(context).colorScheme.primaryContainer;
+
+    return Container(
+      key: index < _verseKeys.length ? _verseKeys[index] : null,
+      color: isActive ? activeColor : highlight,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _tts.isPlaying || _tts.state == TtsState.paused
+                  ? _tts.playFrom(index)
+                  : null,
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: '${verse.verse} ',
+                    style: GoogleFonts.lora(
+                      fontSize: themeService.bibleFontSize * 0.68,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withAlpha(180),
+                      height: 1.6,
+                    ),
+                  ),
+                  TextSpan(
+                    text: verse.textContent,
+                    style: GoogleFonts.lora(
+                      fontSize: themeService.bibleFontSize,
+                      fontWeight:
+                          isActive ? FontWeight.w600 : FontWeight.normal,
+                      height: 1.6,
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          PopupMenuButton<_VerseAction>(
+            icon: const Icon(Icons.more_vert, size: 18),
+            onSelected: (action) {
+              switch (action) {
+                case _VerseAction.note:
+                  _showNoteDialog(verse);
+                case _VerseAction.favorite:
+                  HapticFeedback.lightImpact();
+                  DatabaseService.toggleFavorite(verse);
+                case _VerseAction.share:
+                  SharePlus.instance.share(ShareParams(
+                      text:
+                          '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
+                case _VerseAction.concordance:
+                  _showConcordance(verse);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: _VerseAction.note,
+                child: ListTile(
+                  leading: Icon(Icons.edit_note),
+                  title: Text('Note'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _VerseAction.favorite,
+                child: ListTile(
+                  leading: Icon(
+                    verse.isFavorite ? Icons.star : Icons.star_border,
+                    color: verse.isFavorite ? Colors.amber : null,
+                  ),
+                  title: Text(verse.isFavorite
+                      ? 'Retirer des favoris'
+                      : 'Ajouter aux favoris'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _VerseAction.share,
+                child: ListTile(
+                  leading: Icon(Icons.share),
+                  title: Text('Partager'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _VerseAction.concordance,
+                child: ListTile(
+                  leading: Icon(Icons.link),
+                  title: Text('Versets liés'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+          if (verse.isFavorite)
+            const Icon(Icons.star, color: Colors.amber, size: 14),
+        ],
       ),
     );
   }
@@ -282,7 +545,10 @@ class _LecturePageState extends State<LecturePage> {
                   child: DropdownButton<String>(
                     value: selectedBook,
                     isExpanded: true,
-                    items: _books.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+                    items: _books
+                        .map((b) =>
+                            DropdownMenuItem(value: b, child: Text(b)))
+                        .toList(),
                     onChanged: (v) {
                       if (v != null) {
                         selectedBook = v;
@@ -297,107 +563,65 @@ class _LecturePageState extends State<LecturePage> {
                   child: DropdownButton<String>(
                     value: selectedChapter,
                     isExpanded: true,
-                    items: _chapters.map((ch) => DropdownMenuItem(value: ch, child: Text('Ch. $ch'))).toList(),
+                    items: _chapters
+                        .map((ch) => DropdownMenuItem(
+                            value: ch, child: Text('Ch. $ch')))
+                        .toList(),
                     onChanged: (v) {
                       if (v != null) {
                         setState(() => selectedChapter = v);
                         _loadAndWatchVersesForChapter(selectedBook!, v);
                         _subscribeToChapterReadStatus(selectedBook!, v);
-                        widget.onTitleChange?.call('$selectedBook $v');
+                        widget.onTitleChange
+                            ?.call('$selectedBook $v');
                       }
                     },
                   ),
                 ),
               ],
             ),
-            // ── Barre Lu + bouton audio ──
+            // ── Barre Lu + mode immersif + audio ──
             Row(
               children: [
                 const Text('Lu'),
                 Switch(
                   value: _isCurrentChapterRead,
-                  onChanged: (v) => DatabaseService.toggleChapterReadStatus(
+                  onChanged: (_) => DatabaseService.toggleChapterReadStatus(
                       selectedBook!, int.parse(selectedChapter!)),
                 ),
                 const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.fullscreen),
+                  tooltip: 'Mode lecture immersif',
+                  onPressed: selectedBook != null && selectedChapter != null
+                      ? () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              fullscreenDialog: true,
+                              builder: (_) => ImmersiveLecturePage(
+                                initialBook: selectedBook!,
+                                initialChapter: selectedChapter!,
+                                allBooks: _books,
+                              ),
+                            ),
+                          )
+                      : null,
+                ),
                 _AudioPlayerBar(tts: _tts, verses: _chapterVerses),
               ],
             ),
             // ── Liste des versets ──
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: _chapterVerses.length,
-                itemBuilder: (context, index) {
-                  final verse = _chapterVerses[index];
-                  final highlight = parseNoteColor(verse.noteColor);
-                  final isActive = _tts.isPlaying && _tts.currentVerseIndex == index;
-                  final activeColor = Theme.of(context).colorScheme.primaryContainer;
-
-                  return Container(
-                    key: _verseKeys.length > index ? _verseKeys[index] : null,
-                    color: isActive ? activeColor : highlight,
-                    child: ListTile(
-                      title: Text(
-                        '${verse.verse}. ${verse.textContent}',
-                        style: GoogleFonts.lora(
-                          fontSize: themeService.bibleFontSize,
-                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                      subtitle: verse.noteText != null
-                          ? Text(verse.noteText!,
-                              style: const TextStyle(fontStyle: FontStyle.italic))
-                          : null,
-                      onTap: () => _tts.isPlaying || _tts.state == TtsState.paused
-                          ? _tts.playFrom(index)
-                          : null,
-                      trailing: PopupMenuButton<_VerseAction>(
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (action) {
-                          switch (action) {
-                            case _VerseAction.note:
-                              showNoteDialogForVerse(verse);
-                            case _VerseAction.favorite:
-                              DatabaseService.toggleFavorite(verse);
-                            case _VerseAction.share:
-                              SharePlus.instance.share(ShareParams(
-                                  text: '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: _VerseAction.note,
-                            child: ListTile(
-                              leading: Icon(Icons.edit_note),
-                              title: Text('Note'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _VerseAction.favorite,
-                            child: ListTile(
-                              leading: Icon(
-                                verse.isFavorite ? Icons.star : Icons.star_border,
-                                color: verse.isFavorite ? Colors.amber : null,
-                              ),
-                              title: Text(verse.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: _VerseAction.share,
-                            child: ListTile(
-                              leading: Icon(Icons.share),
-                              title: Text('Partager'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              child: AnimatedOpacity(
+                opacity: _contentOpacity,
+                duration: const Duration(milliseconds: 220),
+                child: ListView(
+                  controller: _scrollController,
+                  children: [
+                    for (int index = 0; index < _chapterVerses.length; index++)
+                      _buildVerseItem(context, index),
+                  ],
+                ),
               ),
             ),
           ],
@@ -407,7 +631,7 @@ class _LecturePageState extends State<LecturePage> {
   }
 }
 
-enum _VerseAction { note, favorite, share }
+enum _VerseAction { note, favorite, share, concordance }
 
 // ── Widget barre de lecture audio ──────────────────────────────────────────
 
@@ -425,7 +649,6 @@ class _AudioPlayerBar extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Voix
         if (tts.availableVoices.isNotEmpty)
           PopupMenuButton<TtsVoice>(
             tooltip: 'Voix',
@@ -447,19 +670,21 @@ class _AudioPlayerBar extends StatelessWidget {
                     ))
                 .toList(),
           ),
-        // Vitesse
         if (isActive)
           PopupMenuButton<double>(
             tooltip: 'Vitesse',
             initialValue: tts.speed,
             icon: Text('${tts.speed}×',
-                style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: color,
+                    fontWeight: FontWeight.bold)),
             onSelected: (v) => tts.setSpeed(v),
             itemBuilder: (_) => [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-                .map((v) => PopupMenuItem(value: v, child: Text('$v×')))
+                .map((v) =>
+                    PopupMenuItem(value: v, child: Text('$v×')))
                 .toList(),
           ),
-        // ⏮
         if (isActive)
           IconButton(
             icon: const Icon(Icons.skip_previous),
@@ -467,7 +692,6 @@ class _AudioPlayerBar extends StatelessWidget {
             tooltip: 'Verset précédent',
             onPressed: tts.skipPrevious,
           ),
-        // ▶ / ⏸ / ■
         IconButton(
           icon: Icon(tts.isPlaying
               ? Icons.pause_circle_filled
@@ -495,7 +719,6 @@ class _AudioPlayerBar extends StatelessWidget {
             }
           },
         ),
-        // ⏭
         if (isActive)
           IconButton(
             icon: const Icon(Icons.skip_next),
@@ -503,7 +726,6 @@ class _AudioPlayerBar extends StatelessWidget {
             tooltip: 'Verset suivant',
             onPressed: tts.skipNext,
           ),
-        // ■ stop
         if (isActive)
           IconButton(
             icon: const Icon(Icons.stop),

@@ -112,6 +112,107 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Prayer>> watchAllPrayers() =>
       (select(prayers)..orderBy([(t) => OrderingTerm(expression: t.priority, mode: OrderingMode.desc), (t) => OrderingTerm(expression: t.dateAdded, mode: OrderingMode.desc)])).watch();
 
+  Stream<List<Prayer>> watchFilteredPrayers({
+    bool? isAnswered,
+    int? categoryId,
+    String? searchQuery,
+  }) {
+    return (select(prayers)
+      ..where((tbl) {
+        Expression<bool> condition = const Constant(true);
+        if (isAnswered != null) condition = condition & tbl.isAnswered.equals(isAnswered);
+        if (categoryId != null) condition = condition & tbl.categoryId.equals(categoryId);
+        if (searchQuery != null && searchQuery.isNotEmpty) {
+          final q = '%${searchQuery.toLowerCase()}%';
+          condition = condition & (tbl.title.like(q) | tbl.description.like(q));
+        }
+        return condition;
+      })
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.priority, mode: OrderingMode.desc),
+        (t) => OrderingTerm(expression: t.dateAdded, mode: OrderingMode.desc),
+      ]))
+        .watch();
+  }
+
+  static const _stopwords = {
+    // Mots grammaticaux / conjonctions
+    'mais', 'avec', 'pour', 'dans', 'tout', 'tous', 'toute', 'toutes',
+    'cette', 'ceux', 'celles', 'leur', 'leurs', 'votre', 'notre', 'comme',
+    'aussi', 'ainsi', 'alors', 'dont', 'donc', 'encore', 'meme', 'plus',
+    'bien', 'selon', 'vers', 'sous', 'sans', 'entre', 'apres', 'avant',
+    'celui', 'celle', 'autre', 'autres', 'chaque', 'sera', 'sont', 'etait',
+    'avoir', 'etre', 'faire', 'dire', 'aller', 'venir', 'voir', 'savoir',
+    'vous', 'nous', 'ils', 'elles', 'cela', 'ceci',
+    // Termes bibliques ultra-fréquents (trop peu discriminants)
+    'seigneur', 'dieu', 'jesus', 'christ', 'voici', 'parce',
+  };
+
+  /// Cherche des versets thématiquement proches en se basant sur les mots
+  /// significatifs du verset source.
+  /// — Option 1 : classement par nombre de mots-clés correspondants
+  /// — Option 2 : stopwords français/bibliques + seuil à 4 caractères
+  /// — Option 3 : inclut le même livre en complément si < limit résultats
+  Future<List<Verse>> findRelatedVerses(Verse sourceVerse, {int limit = 8}) async {
+    final words = sourceVerse.textContentNormalized
+        .split(RegExp(r'[^a-z]+'))
+        .where((w) => w.length >= 4 && !_stopwords.contains(w))
+        .toSet()
+        .take(4)
+        .toList();
+
+    if (words.isEmpty) return [];
+
+    // Étape 1 — Collecter tous les candidats hors livre source avec leur score
+    final scores = <int, int>{};       // verse.id → nb de mots-clés trouvés
+    final candidates = <int, Verse>{}; // verse.id → Verse
+
+    final seen = <int>{sourceVerse.id};
+
+    for (final word in words) {
+      final found = await (select(verses)
+            ..where((t) =>
+                t.textContentNormalized.like('%$word%') &
+                t.book.isNotValue(sourceVerse.book))
+            ..limit(limit * 4)) // marge large pour le tri
+          .get();
+      for (final v in found) {
+        candidates[v.id] = v;
+        scores[v.id] = (scores[v.id] ?? 0) + 1;
+        seen.add(v.id);
+      }
+    }
+
+    // Trier par score décroissant, garder les meilleurs
+    final ranked = candidates.values.toList()
+      ..sort((a, b) => (scores[b.id] ?? 0).compareTo(scores[a.id] ?? 0));
+    final results = ranked.take(limit).toList();
+
+    // Étape 2 — Compléter avec le même livre si on n'a pas atteint la limite
+    if (results.length < limit) {
+      for (final word in words) {
+        if (results.length >= limit) break;
+        final found = await (select(verses)
+              ..where((t) =>
+                  t.textContentNormalized.like('%$word%') &
+                  t.book.equals(sourceVerse.book))
+              ..limit(limit - results.length))
+            .get();
+        for (final v in found) {
+          if (seen.add(v.id)) results.add(v);
+        }
+      }
+    }
+
+    return results;
+  }
+
+  Future<List<Prayer>> getPrayersWithReminders() {
+    return (select(prayers)
+      ..where((tbl) => tbl.hasReminder.equals(true) & tbl.isAnswered.equals(false)))
+        .get();
+  }
+
   Stream<List<Prayer>> watchPrayersByStatus({required bool answered}) =>
       (select(prayers)
         ..where((tbl) => tbl.isAnswered.equals(answered))
