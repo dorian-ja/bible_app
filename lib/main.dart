@@ -150,6 +150,7 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   String? redirectedBook;
   String? redirectedChapter;
+  int? redirectedVerse;
   bool _splashVisible = true;
   String _initializationMessage = 'Initialisation...';
   String _lectureSubtitle = '';
@@ -253,11 +254,12 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
     }
   }
 
-  void navigateToLecture(String book, String chapter) {
+  void navigateToLecture(String book, String chapter, [int verse = 0]) {
     if (mounted) {
       setState(() {
         redirectedBook = book;
         redirectedChapter = chapter;
+        redirectedVerse = verse > 0 ? verse : null;
         _selectedIndex = 0;
       });
     }
@@ -353,9 +355,11 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
           ? LecturePage(
               initialBook: redirectedBook,
               initialChapter: redirectedChapter,
+              initialVerse: redirectedVerse,
               onRedirectionConsumed: () => setState(() {
                 redirectedBook = null;
                 redirectedChapter = null;
+                redirectedVerse = null;
               }),
               onTitleChange: (t) {
                 if (mounted) setState(() => _lectureSubtitle = t);

@@ -6,7 +6,7 @@ import '../database/database.dart';
 import '../services/database_service.dart';
 
 class FavorisPage extends StatefulWidget {
-  final Function(String book, String chapter)? onVerseTap;
+  final void Function(String book, String chapter, [int verse])? onVerseTap;
 
   const FavorisPage({super.key, this.onVerseTap});
 
@@ -68,7 +68,7 @@ class _FavorisPageState extends State<FavorisPage> {
           margin: const EdgeInsets.only(bottom: 10),
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: () => widget.onVerseTap?.call(verse.book, verse.chapter.toString()),
+            onTap: () => widget.onVerseTap?.call(verse.book, verse.chapter.toString(), verse.verse),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
               child: Row(

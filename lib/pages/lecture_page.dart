@@ -16,6 +16,7 @@ import 'immersive_lecture_page.dart';
 class LecturePage extends StatefulWidget {
   final String? initialBook;
   final String? initialChapter;
+  final int? initialVerse;
   final VoidCallback? onRedirectionConsumed;
   final void Function(String title)? onTitleChange;
 
@@ -23,6 +24,7 @@ class LecturePage extends StatefulWidget {
     super.key,
     this.initialBook,
     this.initialChapter,
+    this.initialVerse,
     this.onRedirectionConsumed,
     this.onTitleChange,
   });
@@ -41,6 +43,8 @@ class _LecturePageState extends State<LecturePage> {
 
   bool _isLoading = true;
   double _contentOpacity = 1.0;
+  bool _isFirstChapterEmission = false;
+  int? _targetVerse;
 
   StreamSubscription? _chapterVersesSubscription;
   bool _isCurrentChapterRead = false;
@@ -88,6 +92,7 @@ class _LecturePageState extends State<LecturePage> {
             widget.initialChapter != selectedChapter)) {
       selectedBook = widget.initialBook;
       selectedChapter = widget.initialChapter;
+      _targetVerse = widget.initialVerse;
       _loadDataForSelection();
     }
   }
@@ -149,6 +154,7 @@ class _LecturePageState extends State<LecturePage> {
     _books = await DatabaseService.getBooks();
     if (_books.isNotEmpty) {
       selectedBook = widget.initialBook ?? _books.first;
+      _targetVerse = widget.initialVerse;
       await _loadChaptersForBook(selectedBook!);
       if (_chapters.isNotEmpty) {
         selectedChapter = widget.initialChapter ?? _chapters.first;
@@ -189,6 +195,16 @@ class _LecturePageState extends State<LecturePage> {
     _chapters = await DatabaseService.getChaptersForBook(bookName);
   }
 
+  void _scrollToVerse(int verseNum) {
+    final index = _chapterVerses.indexWhere((v) => v.verse == verseNum);
+    if (index < 0 || index >= _verseKeys.length) return;
+    final ctx = _verseKeys[index].currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 400), alignment: 0.2);
+    }
+  }
+
   Future<void> _loadAndWatchVersesForChapter(
       String bookName, String chapterNumberStr) async {
     final int? chapterNumber = int.tryParse(chapterNumberStr);
@@ -197,26 +213,33 @@ class _LecturePageState extends State<LecturePage> {
     await _tts.stop();
     await _chapterVersesSubscription?.cancel();
 
-    // Fade out, vider immédiatement
+    // Fade out, vider immédiatement, armer le flag première émission
     setState(() {
       _contentOpacity = 0.0;
       _chapterVerses = [];
       _verseKeys = [];
+      _isFirstChapterEmission = true;
     });
 
     _chapterVersesSubscription =
         DatabaseService.watchVerses(bookName, chapterNumber).listen(
       (updatedVerses) {
-        if (mounted) {
-          setState(() {
-            _chapterVerses = updatedVerses;
-            _verseKeys =
-                List.generate(updatedVerses.length, (_) => GlobalKey());
-            _contentOpacity = 1.0; // fade in
-          });
-          // Scroll en haut à la première émission
+        if (!mounted) return;
+        setState(() {
+          _chapterVerses = updatedVerses;
+          _verseKeys = List.generate(updatedVerses.length, (_) => GlobalKey());
+          _contentOpacity = 1.0;
+        });
+
+        // Scroll uniquement à la première émission (changement de chapitre).
+        // Les émissions suivantes (toggle favori, note…) ne bougent pas l'écran.
+        if (_isFirstChapterEmission) {
+          _isFirstChapterEmission = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_scrollController.hasClients) {
+            if (_targetVerse != null) {
+              _scrollToVerse(_targetVerse!);
+              _targetVerse = null;
+            } else if (_scrollController.hasClients) {
               _scrollController.jumpTo(0);
             }
           });
@@ -367,6 +390,115 @@ class _LecturePageState extends State<LecturePage> {
     );
   }
 
+  Widget _buildVerseItem(BuildContext context, int index) {
+    final verse = _chapterVerses[index];
+    final highlight = parseNoteColor(verse.noteColor);
+    final isActive = _tts.isPlaying && _tts.currentVerseIndex == index;
+    final activeColor = Theme.of(context).colorScheme.primaryContainer;
+
+    return Container(
+      key: index < _verseKeys.length ? _verseKeys[index] : null,
+      color: isActive ? activeColor : highlight,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _tts.isPlaying || _tts.state == TtsState.paused
+                  ? _tts.playFrom(index)
+                  : null,
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: '${verse.verse} ',
+                    style: GoogleFonts.lora(
+                      fontSize: themeService.bibleFontSize * 0.68,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withAlpha(180),
+                      height: 1.6,
+                    ),
+                  ),
+                  TextSpan(
+                    text: verse.textContent,
+                    style: GoogleFonts.lora(
+                      fontSize: themeService.bibleFontSize,
+                      fontWeight:
+                          isActive ? FontWeight.w600 : FontWeight.normal,
+                      height: 1.6,
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          PopupMenuButton<_VerseAction>(
+            icon: const Icon(Icons.more_vert, size: 18),
+            onSelected: (action) {
+              switch (action) {
+                case _VerseAction.note:
+                  _showNoteDialog(verse);
+                case _VerseAction.favorite:
+                  HapticFeedback.lightImpact();
+                  DatabaseService.toggleFavorite(verse);
+                case _VerseAction.share:
+                  SharePlus.instance.share(ShareParams(
+                      text:
+                          '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
+                case _VerseAction.concordance:
+                  _showConcordance(verse);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: _VerseAction.note,
+                child: ListTile(
+                  leading: Icon(Icons.edit_note),
+                  title: Text('Note'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _VerseAction.favorite,
+                child: ListTile(
+                  leading: Icon(
+                    verse.isFavorite ? Icons.star : Icons.star_border,
+                    color: verse.isFavorite ? Colors.amber : null,
+                  ),
+                  title: Text(verse.isFavorite
+                      ? 'Retirer des favoris'
+                      : 'Ajouter aux favoris'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _VerseAction.share,
+                child: ListTile(
+                  leading: Icon(Icons.share),
+                  title: Text('Partager'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _VerseAction.concordance,
+                child: ListTile(
+                  leading: Icon(Icons.link),
+                  title: Text('Versets liés'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+          if (verse.isFavorite)
+            const Icon(Icons.star, color: Colors.amber, size: 14),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
@@ -458,133 +590,12 @@ class _LecturePageState extends State<LecturePage> {
               child: AnimatedOpacity(
                 opacity: _contentOpacity,
                 duration: const Duration(milliseconds: 220),
-                child: ListView.builder(
+                child: ListView(
                   controller: _scrollController,
-                  itemCount: _chapterVerses.length,
-                  itemBuilder: (context, index) {
-                    final verse = _chapterVerses[index];
-                    final highlight = parseNoteColor(verse.noteColor);
-                    final isActive =
-                        _tts.isPlaying && _tts.currentVerseIndex == index;
-                    final activeColor =
-                        Theme.of(context).colorScheme.primaryContainer;
-
-                    return Container(
-                      key: index < _verseKeys.length
-                          ? _verseKeys[index]
-                          : null,
-                      color: isActive ? activeColor : highlight,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () =>
-                                  _tts.isPlaying ||
-                                          _tts.state == TtsState.paused
-                                      ? _tts.playFrom(index)
-                                      : null,
-                              child: Text.rich(
-                                TextSpan(children: [
-                                  // Numéro de verset inline, style petite Bible
-                                  TextSpan(
-                                    text: '${verse.verse} ',
-                                    style: GoogleFonts.lora(
-                                      fontSize:
-                                          themeService.bibleFontSize * 0.68,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary
-                                          .withAlpha(180),
-                                      height: 1.6,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: verse.textContent,
-                                    style: GoogleFonts.lora(
-                                      fontSize: themeService.bibleFontSize,
-                                      fontWeight: isActive
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      height: 1.6,
-                                    ),
-                                  ),
-                                ]),
-                              ),
-                            ),
-                          ),
-                          PopupMenuButton<_VerseAction>(
-                            icon: const Icon(Icons.more_vert, size: 18),
-                            onSelected: (action) {
-                              switch (action) {
-                                case _VerseAction.note:
-                                  _showNoteDialog(verse);
-                                case _VerseAction.favorite:
-                                  HapticFeedback.lightImpact();
-                                  DatabaseService.toggleFavorite(verse);
-                                case _VerseAction.share:
-                                  SharePlus.instance.share(ShareParams(
-                                      text:
-                                          '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
-                                case _VerseAction.concordance:
-                                  _showConcordance(verse);
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(
-                                value: _VerseAction.note,
-                                child: ListTile(
-                                  leading: Icon(Icons.edit_note),
-                                  title: Text('Note'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: _VerseAction.favorite,
-                                child: ListTile(
-                                  leading: Icon(
-                                    verse.isFavorite
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: verse.isFavorite
-                                        ? Colors.amber
-                                        : null,
-                                  ),
-                                  title: Text(verse.isFavorite
-                                      ? 'Retirer des favoris'
-                                      : 'Ajouter aux favoris'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: _VerseAction.share,
-                                child: ListTile(
-                                  leading: Icon(Icons.share),
-                                  title: Text('Partager'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: _VerseAction.concordance,
-                                child: ListTile(
-                                  leading: Icon(Icons.link),
-                                  title: Text('Versets liés'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Étoile favorite visible directement
-                          if (verse.isFavorite)
-                            const Icon(Icons.star,
-                                color: Colors.amber, size: 14),
-                        ],
-                      ),
-                    );
-                  },
+                  children: [
+                    for (int index = 0; index < _chapterVerses.length; index++)
+                      _buildVerseItem(context, index),
+                  ],
                 ),
               ),
             ),
