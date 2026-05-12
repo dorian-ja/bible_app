@@ -4,6 +4,7 @@ import 'package:diacritic/diacritic.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
+import '../utils/note_colors.dart';
 
 class RecherchePage extends StatefulWidget {
   final void Function(String book, String chapter, [int verse])? onVerseTap;
@@ -19,6 +20,7 @@ class _RecherchePageState extends State<RecherchePage> {
   List<Verse> searchResults = [];
   String query = "";
   bool isSearching = false;
+  String? _selectedColor;
   final TextEditingController keywordController = TextEditingController();
   final TextEditingController refController = TextEditingController();
   StreamSubscription? _verseWatcher;
@@ -33,11 +35,12 @@ class _RecherchePageState extends State<RecherchePage> {
   @override
   void dispose() {
     _verseWatcher?.cancel();
+    keywordController.dispose();
+    refController.dispose();
     super.dispose();
   }
 
   void _subscribeToVerseChanges() {
-    // On observe la table des versets pour rafraîchir les résultats si un favori change
     _verseWatcher = DatabaseService.db.select(DatabaseService.db.verses).watch().listen((_) {
       if (mounted && searchResults.isNotEmpty) {
         _refreshSearchResults();
@@ -46,8 +49,9 @@ class _RecherchePageState extends State<RecherchePage> {
   }
 
   Future<void> _refreshSearchResults() async {
-    // Optionnel : re-exécuter la recherche actuelle pour mettre à jour les états favoris
-    if (keywordController.text.isNotEmpty) {
+    if (_selectedColor != null) {
+      _searchByColor(_selectedColor!, silent: true);
+    } else if (keywordController.text.isNotEmpty) {
       searchVerses(keywordController.text, silent: true);
     }
   }
@@ -61,8 +65,43 @@ class _RecherchePageState extends State<RecherchePage> {
     await DatabaseService.toggleFavorite(verse);
   }
 
+  void _clearAll() {
+    keywordController.clear();
+    refController.clear();
+    setState(() {
+      _selectedColor = null;
+      searchResults = [];
+      query = '';
+      isSearching = false;
+    });
+  }
+
+  Future<void> _searchByColor(String colorHex, {bool silent = false}) async {
+    if (!silent) {
+      keywordController.clear();
+      refController.clear();
+      setState(() {
+        _selectedColor = colorHex;
+        isSearching = true;
+        query = colorHex;
+      });
+    }
+    final results = await DatabaseService.getVersesByColor(colorHex);
+    if (mounted) {
+      setState(() {
+        searchResults = results;
+        isSearching = false;
+      });
+    }
+  }
+
   Future<void> searchVerses(String keyword, {bool silent = false}) async {
-    if (!silent) setState(() => isSearching = true);
+    if (!silent) {
+      setState(() {
+        _selectedColor = null;
+        isSearching = true;
+      });
+    }
     query = keyword;
 
     if (keyword.trim().isEmpty) {
@@ -83,7 +122,10 @@ class _RecherchePageState extends State<RecherchePage> {
   }
 
   Future<void> searchByReference(String input) async {
-    setState(() => isSearching = true);
+    setState(() {
+      _selectedColor = null;
+      isSearching = true;
+    });
     query = input;
 
     final match = RegExp(r'^(.+?)\s+(\d+):(\d+)$').firstMatch(input.trim());
@@ -101,7 +143,6 @@ class _RecherchePageState extends State<RecherchePage> {
       return;
     }
 
-    // Recherche du livre exact (gestion diacritiques)
     String? foundBookKey;
     try {
       foundBookKey = bibleData.keys.firstWhere(
@@ -124,8 +165,11 @@ class _RecherchePageState extends State<RecherchePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = kNoteColorOptions.where((c) => c.hex != null).toList();
+
     return Column(
       children: [
+        // ── Recherche mot-clé ──
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
           child: TextField(
@@ -136,75 +180,132 @@ class _RecherchePageState extends State<RecherchePage> {
               suffixIcon: keywordController.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        keywordController.clear();
-                        searchVerses('');
-                      })
+                      onPressed: _clearAll,
+                    )
                   : null,
             ),
             onSubmitted: (v) => searchVerses(v),
             onChanged: (_) => setState(() {}),
           ),
         ),
+        // ── Accès direct par référence ──
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: TextField(
             controller: refController,
-            decoration: InputDecoration(
-              labelText: 'Accès direct (ex : Jean 3:16)',
-              prefixIcon: const Icon(Icons.menu_book_outlined),
+            decoration: const InputDecoration(
+              labelText: 'Accès direct (ex : Jean 3:16)',
+              prefixIcon: Icon(Icons.menu_book_outlined),
             ),
             onSubmitted: (v) => searchByReference(v),
           ),
         ),
+        // ── Filtre par couleur de surlignage ──
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.palette_outlined, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              ...colors.map((opt) {
+                final isSelected = _selectedColor == opt.hex;
+                final color = parseNoteColor(opt.hex)!;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Tooltip(
+                    message: opt.label,
+                    child: GestureDetector(
+                      onTap: () => isSelected
+                          ? _clearAll()
+                          : _searchByColor(opt.hex!),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey.shade400,
+                            width: isSelected ? 2.5 : 1,
+                          ),
+                          boxShadow: isSelected
+                              ? [BoxShadow(
+                                  color: color.withValues(alpha: 0.6),
+                                  blurRadius: 6,
+                                )]
+                              : null,
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check, size: 14, color: Colors.black54)
+                            : null,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              if (_selectedColor != null) ...[
+                const Spacer(),
+                TextButton(
+                  onPressed: _clearAll,
+                  child: const Text('Effacer'),
+                ),
+              ],
+            ],
+          ),
+        ),
+        // ── Résultats ──
         Expanded(
           child: isSearching
               ? const Center(child: CircularProgressIndicator())
               : searchResults.isEmpty
                   ? Center(
-                      child: Text(query.isEmpty
-                          ? 'Entrez un mot ou une référence.'
-                          : 'Aucun verset trouvé.'),
+                      child: Text(
+                        query.isEmpty
+                            ? 'Entrez un mot, une référence\nou sélectionnez une couleur.'
+                            : _selectedColor != null
+                                ? 'Aucun verset surligné avec cette couleur.'
+                                : 'Aucun verset trouvé.',
+                        textAlign: TextAlign.center,
+                      ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       itemCount: searchResults.length,
                       itemBuilder: (context, index) {
                         final verse = searchResults[index];
+                        final highlight = parseNoteColor(verse.noteColor);
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
+                          color: highlight,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () => widget.onVerseTap
                                 ?.call(verse.book, verse.chapter.toString(), verse.verse),
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                              padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${verse.book}\u00a0${verse.chapter}:\u00a0${verse.verse}',
+                                          '${verse.book} ${verse.chapter}: ${verse.verse}',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 12,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
+                                            color: Theme.of(context).colorScheme.primary,
                                             letterSpacing: 0.4,
                                           ),
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
                                           verse.textContent,
-                                          style: GoogleFonts.lora(
-                                              fontSize: 14, height: 1.55),
+                                          style: GoogleFonts.lora(fontSize: 14, height: 1.55),
                                           maxLines: 4,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -213,12 +314,8 @@ class _RecherchePageState extends State<RecherchePage> {
                                   ),
                                   IconButton(
                                     icon: Icon(
-                                      verse.isFavorite
-                                          ? Icons.star
-                                          : Icons.star_outline,
-                                      color: verse.isFavorite
-                                          ? Colors.amber
-                                          : null,
+                                      verse.isFavorite ? Icons.star : Icons.star_outline,
+                                      color: verse.isFavorite ? Colors.amber : null,
                                     ),
                                     onPressed: () => _toggleFavorite(verse),
                                   ),

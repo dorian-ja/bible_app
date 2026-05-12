@@ -135,6 +135,17 @@ class DatabaseService {
         .get();
   }
 
+  static Future<List<Verse>> getVersesByColor(String colorHex) {
+    return (db.select(db.verses)
+          ..where((t) => t.noteColor.equals(colorHex))
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.book),
+            (t) => OrderingTerm(expression: t.chapter),
+            (t) => OrderingTerm(expression: t.verse),
+          ]))
+        .get();
+  }
+
   /// Backfill de textContentNormalized pour les utilisateurs existants (migration v3).
   static Future<void> ensureNormalizedText() async {
     final needsBackfill = await (db.select(db.verses)
