@@ -160,7 +160,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
   late final Animation<double> _splashOpacity;
   late final Animation<double> _splashScale;
   late final AnimationController _tabFadeCtrl;
-  late final Animation<double> _tabFade;
 
   @override
   void initState() {
@@ -180,7 +179,6 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
     // Fade onglets
     _tabFadeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 220));
-    _tabFade = CurvedAnimation(parent: _tabFadeCtrl, curve: Curves.easeIn);
     _tabFadeCtrl.value = 1.0;
 
     _tabNavigationSubscription = tabNavigationController.stream.listen((tabIndex) {
@@ -247,6 +245,24 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
             action: SnackBarAction(
               label: 'Lire',
               onPressed: () => tabNavigationController.add(1),
+            ),
+          ),
+        );
+      });
+    }
+
+    // Proposition de reprendre la dernière lecture
+    final lastPos = await LecturePage.loadLastPosition();
+    if (lastPos != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final messenger = ScaffoldMessenger.maybeOf(navigatorKey.currentContext ?? context);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text('Reprendre : ${lastPos.book} ${lastPos.chapter}'),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: 'Reprendre',
+              onPressed: () => navigateToLecture(lastPos.book, lastPos.chapter),
             ),
           ),
         );
@@ -350,37 +366,34 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
     }
 
     // ---- App principale ----
+    // Toutes les pages sont toujours dans l'arbre pour que l'IndexedStack
+    // puisse conserver leur état lors des changements d'onglet.
+    // Material(transparency) autour de chaque page : les effets d'encre
+    // (InkWell, ListTile, ExpansionTile) peignent sur ce Material local
+    // et non sur celui du Scaffold — empêche la surbrillance de persister
+    // sur les autres onglets.
+    Widget wrap(Widget child) =>
+        Material(type: MaterialType.transparency, child: child);
+
     final pages = [
-      _selectedIndex == 0
-          ? LecturePage(
-              initialBook: redirectedBook,
-              initialChapter: redirectedChapter,
-              initialVerse: redirectedVerse,
-              onRedirectionConsumed: () => setState(() {
-                redirectedBook = null;
-                redirectedChapter = null;
-                redirectedVerse = null;
-              }),
-              onTitleChange: (t) {
-                if (mounted) setState(() => _lectureSubtitle = t);
-              },
-            )
-          : const SizedBox.shrink(),
-      _selectedIndex == 1
-          ? VersetDuJourPage(onVerseTap: navigateToLecture)
-          : const SizedBox.shrink(),
-      _selectedIndex == 2
-          ? FavorisPage(onVerseTap: navigateToLecture)
-          : const SizedBox.shrink(),
-      _selectedIndex == 3
-          ? RecherchePage(onVerseTap: navigateToLecture)
-          : const SizedBox.shrink(),
-      _selectedIndex == 4
-          ? PlanDeLecturePage(onChapterTap: navigateToLecture)
-          : const SizedBox.shrink(),
-      _selectedIndex == 5
-          ? const CarnetDePrieresPage()
-          : const SizedBox.shrink(),
+      wrap(LecturePage(
+        initialBook: redirectedBook,
+        initialChapter: redirectedChapter,
+        initialVerse: redirectedVerse,
+        onRedirectionConsumed: () => setState(() {
+          redirectedBook = null;
+          redirectedChapter = null;
+          redirectedVerse = null;
+        }),
+        onTitleChange: (t) {
+          if (mounted) setState(() => _lectureSubtitle = t);
+        },
+      )),
+      wrap(VersetDuJourPage(onVerseTap: navigateToLecture)),
+      wrap(FavorisPage(onVerseTap: navigateToLecture)),
+      wrap(RecherchePage(onVerseTap: navigateToLecture)),
+      wrap(PlanDeLecturePage(onChapterTap: navigateToLecture)),
+      wrap(const CarnetDePrieresPage()),
     ];
 
     return MaterialApp(
@@ -402,10 +415,7 @@ class _BibleAppState extends State<BibleApp> with TickerProviderStateMixin {
             ),
           ],
         ),
-        body: FadeTransition(
-          opacity: _tabFade,
-          child: IndexedStack(index: _selectedIndex, children: pages),
-        ),
+        body: IndexedStack(index: _selectedIndex, children: pages),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: (index) {

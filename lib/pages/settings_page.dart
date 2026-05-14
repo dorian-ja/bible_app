@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../main.dart' show themeService;
 
@@ -32,6 +37,61 @@ class _SettingsPageState extends State<SettingsPage> {
         _fontSize = themeService.bibleFontSize;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _exportData() async {
+    try {
+      final favorites = await DatabaseService.getFavoriteVerses();
+      final notes = await DatabaseService.db.watchAnnotatedVerses().first;
+      final prayers = await DatabaseService.db.select(DatabaseService.db.prayers).get();
+
+      final data = {
+        'exported_at': DateTime.now().toIso8601String(),
+        'favorites': favorites.map((v) => {
+          'book': v.book,
+          'chapter': v.chapter,
+          'verse': v.verse,
+          'text': v.textContent,
+        }).toList(),
+        'notes': notes.map((v) => {
+          'book': v.book,
+          'chapter': v.chapter,
+          'verse': v.verse,
+          'text': v.textContent,
+          'note': v.noteText,
+          'color': v.noteColor,
+        }).toList(),
+        'prayers': prayers.map((p) => {
+          'title': p.title,
+          'description': p.description,
+          'priority': p.priority,
+          'is_answered': p.isAnswered,
+          'date_added': p.dateAdded.toIso8601String(),
+          'date_answered': p.dateAnswered?.toIso8601String(),
+          'linked_verse': p.linkedVerseRef,
+          'linked_verse_text': p.linkedVerseText,
+        }).toList(),
+      };
+
+      final json = const JsonEncoder.withIndent('  ').convert(data);
+      final dir = await getTemporaryDirectory();
+      final now = DateTime.now();
+      final filename =
+          'myownbible_export_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.json';
+      final file = File('${dir.path}/$filename');
+      await file.writeAsString(json);
+
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/json')],
+        text: 'Mes données MyOwnBible',
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de l\'export : $e')),
+        );
+      }
     }
   }
 
@@ -150,6 +210,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                const Divider(),
+                // ---- Export ----
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Text('Données', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.download_outlined),
+                  title: const Text('Exporter mes données'),
+                  subtitle: const Text('Favoris, notes et prières au format JSON'),
+                  onTap: _exportData,
+                ),
                 const Divider(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

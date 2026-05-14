@@ -1,10 +1,16 @@
 // lib/pages/lecture_page.dart
 
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:drift/drift.dart' show Value;
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/tts_service.dart';
@@ -28,6 +34,20 @@ class LecturePage extends StatefulWidget {
     this.onRedirectionConsumed,
     this.onTitleChange,
   });
+
+  static Future<void> saveLastPosition(String book, String chapter) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_book', book);
+    await prefs.setString('last_chapter', chapter);
+  }
+
+  static Future<({String book, String chapter})?> loadLastPosition() async {
+    final prefs = await SharedPreferences.getInstance();
+    final book = prefs.getString('last_book');
+    final chapter = prefs.getString('last_chapter');
+    if (book == null || chapter == null) return null;
+    return (book: book, chapter: chapter);
+  }
 
   @override
   State<LecturePage> createState() => _LecturePageState();
@@ -198,29 +218,15 @@ class _LecturePageState extends State<LecturePage> {
   void _scrollToVerse(int verseNum) {
     final index = _chapterVerses.indexWhere((v) => v.verse == verseNum);
     if (index < 0 || index >= _verseKeys.length) return;
-    if (!_scrollController.hasClients) return;
 
     final ctx = _verseKeys[index].currentContext;
     if (ctx == null) return;
 
-    final ro = ctx.findRenderObject();
-    if (ro == null || !ro.attached) return;
-
-    // Calcule l'offset exact à partir de la position du RenderBox dans le scroll
-    final listRO = _scrollController.position.context.storageContext.findRenderObject();
-    if (listRO is! RenderBox) return;
-    if (ro is! RenderBox) return;
-
-    final localOffset = ro.localToGlobal(Offset.zero, ancestor: listRO);
-    final viewportH = _scrollController.position.viewportDimension;
-    final target = (_scrollController.offset + localOffset.dy - viewportH * 0.15)
-        .clamp(_scrollController.position.minScrollExtent,
-               _scrollController.position.maxScrollExtent);
-
-    _scrollController.animateTo(
-      target,
+    Scrollable.ensureVisible(
+      ctx,
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOut,
+      alignment: 0.15,
     );
   }
 
@@ -228,6 +234,9 @@ class _LecturePageState extends State<LecturePage> {
       String bookName, String chapterNumberStr) async {
     final int? chapterNumber = int.tryParse(chapterNumberStr);
     if (chapterNumber == null) return;
+
+    // Sauvegarde de la dernière position lue
+    LecturePage.saveLastPosition(bookName, chapterNumberStr);
 
     await _tts.stop();
     await _chapterVersesSubscription?.cancel();
@@ -473,8 +482,12 @@ class _LecturePageState extends State<LecturePage> {
                   SharePlus.instance.share(ShareParams(
                       text:
                           '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
+                case _VerseAction.shareImage:
+                  _shareVerseAsImage(verse);
                 case _VerseAction.concordance:
                   _showConcordance(verse);
+                case _VerseAction.linkPrayer:
+                  _showLinkToPrayerDialog(verse);
               }
             },
             itemBuilder: (_) => [
@@ -503,7 +516,23 @@ class _LecturePageState extends State<LecturePage> {
                 value: _VerseAction.share,
                 child: ListTile(
                   leading: Icon(Icons.share),
-                  title: Text('Partager'),
+                  title: Text('Partager texte'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _VerseAction.shareImage,
+                child: ListTile(
+                  leading: Icon(Icons.image_outlined),
+                  title: Text('Partager en image'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: _VerseAction.linkPrayer,
+                child: ListTile(
+                  leading: Icon(Icons.self_improvement),
+                  title: Text('Lier à une prière'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -519,6 +548,210 @@ class _LecturePageState extends State<LecturePage> {
           ),
           if (verse.isFavorite)
             const Icon(Icons.star, color: Colors.amber, size: 14),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showLinkToPrayerDialog(Verse verse) async {
+    final prayers = await DatabaseService.db
+        .select(DatabaseService.db.prayers)
+        .get();
+
+    if (!mounted) return;
+
+    if (prayers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Aucune prière trouvée. Créez d\'abord une prière dans le carnet.')),
+      );
+      return;
+    }
+
+    final ref = '${verse.book} ${verse.chapter}:${verse.verse}';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Lier à une prière'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: prayers.length,
+            itemBuilder: (_, i) {
+              final prayer = prayers[i];
+              return ListTile(
+                title: Text(prayer.title),
+                subtitle: prayer.linkedVerseRef != null
+                    ? Text('Lié à : ${prayer.linkedVerseRef}',
+                        style: const TextStyle(fontSize: 11))
+                    : null,
+                onTap: () async {
+                  await DatabaseService.db.updatePrayer(prayer.copyWith(
+                    linkedVerseRef: Value(ref),
+                    linkedVerseText: Value(verse.textContent),
+                  ));
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content:
+                              Text('Verset lié à « ${prayer.title} »')),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _shareVerseAsImage(Verse verse) async {
+    final repaintKey = GlobalKey();
+    final highlight = parseNoteColor(verse.noteColor);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        contentPadding: const EdgeInsets.all(16),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RepaintBoundary(
+              key: repaintKey,
+              child: Container(
+                width: 320,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: highlight ?? Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF4E342E), width: 1.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${verse.book} ${verse.chapter}:${verse.verse}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF4E342E),
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      verse.textContent,
+                      style: GoogleFonts.lora(
+                          fontSize: 15, height: 1.6, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'MyOwnBible',
+                        style: GoogleFonts.lora(
+                            fontSize: 11,
+                            color: const Color(0xFF4E342E),
+                            fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  icon: const Icon(Icons.share, size: 18),
+                  label: const Text('Partager'),
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final boundary = repaintKey.currentContext
+                          ?.findRenderObject() as RenderRepaintBoundary?;
+                      if (boundary == null) return;
+                      final image = await boundary.toImage(pixelRatio: 3.0);
+                      final byteData = await image.toByteData(
+                          format: ui.ImageByteFormat.png);
+                      if (byteData == null) return;
+                      final bytes = byteData.buffer.asUint8List();
+                      final dir = await getTemporaryDirectory();
+                      final file = File(
+                          '${dir.path}/verset_${verse.book}_${verse.chapter}_${verse.verse}.png');
+                      await file.writeAsBytes(bytes);
+                      await SharePlus.instance.share(ShareParams(
+                        files: [XFile(file.path, mimeType: 'image/png')],
+                        text:
+                            '${verse.book} ${verse.chapter}:${verse.verse}',
+                      ));
+                    } catch (e) {
+                      debugPrint('Erreur partage image: $e');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGoToVerseDialog() {
+    final controller = TextEditingController();
+
+    void confirm(BuildContext ctx) {
+      final n = int.tryParse(controller.text.trim());
+      if (n != null && n >= 1 && n <= _chapterVerses.length) {
+        Navigator.pop(ctx);
+        // Laisser l'animation de fermeture du dialogue se terminer (~250ms)
+        // avant de scroller, sinon le contexte du widget cible peut être invalide.
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) _scrollToVerse(n);
+        });
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Aller au verset'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Numéro de verset (1–${_chapterVerses.length})',
+          ),
+          onSubmitted: (_) => confirm(ctx),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => confirm(ctx),
+            child: const Text('Aller'),
+          ),
         ],
       ),
     );
@@ -590,6 +823,12 @@ class _LecturePageState extends State<LecturePage> {
                       selectedBook!, int.parse(selectedChapter!)),
                 ),
                 const Spacer(),
+                if (_chapterVerses.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.pin),
+                    tooltip: 'Aller au verset…',
+                    onPressed: _showGoToVerseDialog,
+                  ),
                 IconButton(
                   icon: const Icon(Icons.fullscreen),
                   tooltip: 'Mode lecture immersif',
@@ -631,7 +870,7 @@ class _LecturePageState extends State<LecturePage> {
   }
 }
 
-enum _VerseAction { note, favorite, share, concordance }
+enum _VerseAction { note, favorite, share, shareImage, concordance, linkPrayer }
 
 // ── Widget barre de lecture audio ──────────────────────────────────────────
 
