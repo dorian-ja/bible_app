@@ -114,6 +114,7 @@ class _LecturePageState extends State<LecturePage> {
       selectedChapter = widget.initialChapter;
       _targetVerse = widget.initialVerse;
       _loadDataForSelection();
+      widget.onRedirectionConsumed?.call();
     }
   }
 
@@ -721,12 +722,8 @@ class _LecturePageState extends State<LecturePage> {
     void confirm(BuildContext ctx) {
       final n = int.tryParse(controller.text.trim());
       if (n != null && n >= 1 && n <= _chapterVerses.length) {
+        _scrollToVerse(n);
         Navigator.pop(ctx);
-        // Laisser l'animation de fermeture du dialogue se terminer (~250ms)
-        // avant de scroller, sinon le contexte du widget cible peut être invalide.
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) _scrollToVerse(n);
-        });
       }
     }
 
