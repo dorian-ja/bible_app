@@ -175,6 +175,7 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
             data: Theme.of(context).copyWith(
               hoverColor: Colors.transparent,
               highlightColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
             ),
             child: ListView.builder(
             itemCount: _books.length,
