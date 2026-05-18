@@ -81,6 +81,52 @@ class PrayerCard extends StatelessWidget {
                 ),
               ),
             ),
+          if (prayer.linkedVerseRef != null) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: Colors.brown.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.brown.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.menu_book_outlined,
+                      size: 14, color: Colors.brown),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          prayer.linkedVerseRef!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.brown,
+                          ),
+                        ),
+                        if (prayer.linkedVerseText?.isNotEmpty == true) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            prayer.linkedVerseText!,
+                            style: GoogleFonts.lora(
+                                fontSize: 12,
+                                color: Colors.brown.shade700,
+                                height: 1.4),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Row(
             children: [
               if (category != null)

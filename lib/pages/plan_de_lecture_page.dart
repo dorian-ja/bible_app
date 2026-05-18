@@ -105,7 +105,12 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
 
     final int chaptersReadCount = _readChapters.length;
 
-    return Column(
+    // Material transparent local : les InkWell peignent sur ce Material-ci
+    // (à l'intérieur de l'IndexedStack) et non sur le Material racine du Scaffold,
+    // ce qui empêche les effets d'encre de persister sur les autres onglets.
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -164,7 +169,15 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
           ),
         ),
         Expanded(
-          child: ListView.builder(
+          // Theme override : supprime hover et highlight gris persistants sur Flutter Web.
+          // hoverColor/highlightColor transparents + overlayColor sur ListTileTheme.
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              hoverColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
+            ),
+            child: ListView.builder(
             itemCount: _books.length,
             itemBuilder: (context, index) {
               final book = _books[index];
@@ -172,10 +185,18 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
               final bookState = _bookReadState(book);
 
               return ExpansionTile(
+                backgroundColor: Colors.transparent,
+                collapsedBackgroundColor: Colors.transparent,
+                textColor: Theme.of(context).colorScheme.onSurface,
+                collapsedTextColor: Theme.of(context).colorScheme.onSurface,
+                iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                collapsedIconColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 title: Row(
                   children: [
                     InkWell(
                       borderRadius: BorderRadius.circular(4),
+                      hoverColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
                       onTap: () => DatabaseService.toggleBookReadStatus(book),
                       child: Padding(
                         padding: const EdgeInsets.only(right: 8),
@@ -214,8 +235,9 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
                   final key = '$book|$ch';
                   final isRead = _readChapters.contains(key);
                   return ListTile(
+                    contentPadding: const EdgeInsets.only(left: 48, right: 16),
                     title: Text('Chapitre $ch'),
-                    onTap: () => widget.onChapterTap?.call(book, ch),
+                    onTap: () => Future.microtask(() => widget.onChapterTap?.call(book, ch)),
                     trailing: Checkbox(
                       value: isRead,
                       activeColor: Theme.of(context).colorScheme.primary,
@@ -226,8 +248,10 @@ class _PlanDeLecturePageState extends State<PlanDeLecturePage> {
               );
             },
           ),
+          ),
         ),
       ],
+      ),
     );
   }
 }

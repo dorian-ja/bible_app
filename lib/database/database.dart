@@ -8,13 +8,29 @@ class Prayers extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text()();
   TextColumn get description => text().nullable()();
-  IntColumn get priority => integer().withDefault(const Constant(1))(); // 1=Normale, 2=Importante, 3=Critique
-  IntColumn get categoryId => integer().nullable()(); // Référence à PrayerCategories
+  IntColumn get priority => integer().withDefault(const Constant(1))();
+  IntColumn get categoryId => integer().nullable()();
   DateTimeColumn get dateAdded => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get dateAnswered => dateTime().nullable()();
   BoolColumn get isAnswered => boolean().withDefault(const Constant(false))();
   BoolColumn get hasReminder => boolean().withDefault(const Constant(false))();
   DateTimeColumn get reminderTime => dateTime().nullable()();
+  TextColumn get linkedVerseRef => text().nullable()();  // ex: "Jean 3:16"
+  TextColumn get linkedVerseText => text().nullable()();
+}
+
+class FavoriteCollections extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get colorHex => text().withDefault(const Constant('#4E342E'))();
+}
+
+class CollectionVerses extends Table {
+  IntColumn get collectionId => integer()();
+  IntColumn get verseId => integer()();
+
+  @override
+  Set<Column> get primaryKey => {collectionId, verseId};
 }
 
 class PrayerCategories extends Table {
@@ -36,7 +52,7 @@ class Verses extends Table {
   BoolColumn get isChapterRead => boolean().withDefault(const Constant(false))();
 }
 
-@DriftDatabase(tables: [Verses, Prayers, PrayerCategories])
+@DriftDatabase(tables: [Verses, Prayers, PrayerCategories, FavoriteCollections, CollectionVerses])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -44,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   static const _defaultCategories = [
     ('Famille', '0xFF42A5F5'),
@@ -89,8 +105,97 @@ class AppDatabase extends _$AppDatabase {
           await _insertDefaultCategories();
         }
       }
+      if (from < 5) {
+        // Migration v4 → v5 : verset lié aux prières + collections de favoris
+        await customStatement(
+            'ALTER TABLE prayers ADD COLUMN linked_verse_ref TEXT');
+        await customStatement(
+            'ALTER TABLE prayers ADD COLUMN linked_verse_text TEXT');
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS favorite_collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            color_hex TEXT NOT NULL DEFAULT "#4E342E"
+          )''');
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS collection_verses (
+            collection_id INTEGER NOT NULL,
+            verse_id INTEGER NOT NULL,
+            PRIMARY KEY (collection_id, verse_id)
+          )''');
+      }
     },
   );
+
+  // === Collections de favoris ===
+
+  Stream<List<FavoriteCollection>> watchAllCollections() =>
+      (select(favoriteCollections)
+        ..orderBy([(t) => OrderingTerm(expression: t.name)]))
+          .watch();
+
+  Future<int> insertCollection(String name, String colorHex) =>
+      into(favoriteCollections).insert(
+        FavoriteCollectionsCompanion(
+          name: Value(name),
+          colorHex: Value(colorHex),
+        ),
+      );
+
+  Future<void> deleteCollection(int id) => transaction(() async {
+    await (delete(collectionVerses)
+        ..where((t) => t.collectionId.equals(id))).go();
+    await (delete(favoriteCollections)
+        ..where((t) => t.id.equals(id))).go();
+  });
+
+  Future<void> addVerseToCollection(int collectionId, int verseId) =>
+      into(collectionVerses).insertOnConflictUpdate(
+        CollectionVersesCompanion(
+          collectionId: Value(collectionId),
+          verseId: Value(verseId),
+        ),
+      );
+
+  Future<void> removeVerseFromCollection(int collectionId, int verseId) =>
+      (delete(collectionVerses)
+        ..where((t) =>
+            t.collectionId.equals(collectionId) & t.verseId.equals(verseId)))
+          .go();
+
+  Stream<List<Verse>> watchCollectionVerses(int collectionId) {
+    final query = select(verses).join([
+      innerJoin(
+        collectionVerses,
+        collectionVerses.verseId.equalsExp(verses.id),
+      ),
+    ])..where(collectionVerses.collectionId.equals(collectionId))
+      ..orderBy([
+        OrderingTerm(expression: verses.book),
+        OrderingTerm(expression: verses.chapter),
+        OrderingTerm(expression: verses.verse),
+      ]);
+    return query.watch().map((rows) => rows.map((r) => r.readTable(verses)).toList());
+  }
+
+  Future<List<int>> getVerseCollectionIds(int verseId) async {
+    final rows = await (select(collectionVerses)
+          ..where((t) => t.verseId.equals(verseId)))
+        .get();
+    return rows.map((r) => r.collectionId).toList();
+  }
+
+  // === Notes centralisées ===
+
+  Stream<List<Verse>> watchAnnotatedVerses() =>
+      (select(verses)
+        ..where((t) => t.noteText.isNotNull() & t.noteText.isNotValue(''))
+        ..orderBy([
+          (t) => OrderingTerm(expression: t.book),
+          (t) => OrderingTerm(expression: t.chapter),
+          (t) => OrderingTerm(expression: t.verse),
+        ]))
+          .watch();
 
   // === Gestion des catégories ===
   Stream<List<PrayerCategory>> watchAllCategories() =>
@@ -240,6 +345,8 @@ class AppDatabase extends _$AppDatabase {
     int? categoryId,
     bool hasReminder = false,
     DateTime? reminderTime,
+    String? linkedVerseRef,
+    String? linkedVerseText,
   }) {
     return into(prayers).insert(PrayersCompanion(
       title: Value(title),
@@ -248,6 +355,8 @@ class AppDatabase extends _$AppDatabase {
       categoryId: Value(categoryId),
       hasReminder: Value(hasReminder),
       reminderTime: Value(reminderTime),
+      linkedVerseRef: Value(linkedVerseRef),
+      linkedVerseText: Value(linkedVerseText),
     ));
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:diacritic/diacritic.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../utils/note_colors.dart';
@@ -21,15 +22,28 @@ class _RecherchePageState extends State<RecherchePage> {
   String query = "";
   bool isSearching = false;
   String? _selectedColor;
+  List<String> _searchHistory = [];
+  bool _showHistory = false;
   final TextEditingController keywordController = TextEditingController();
   final TextEditingController refController = TextEditingController();
+  final FocusNode _keywordFocus = FocusNode();
   StreamSubscription? _verseWatcher;
+
+  static const _historyKey = 'search_history';
+  static const _historyMax = 8;
 
   @override
   void initState() {
     super.initState();
     loadBibleData();
     _subscribeToVerseChanges();
+    _loadHistory();
+    _keywordFocus.addListener(() {
+      setState(() => _showHistory = _keywordFocus.hasFocus && keywordController.text.isEmpty);
+    });
+    keywordController.addListener(() {
+      setState(() => _showHistory = _keywordFocus.hasFocus && keywordController.text.isEmpty);
+    });
   }
 
   @override
@@ -37,7 +51,32 @@ class _RecherchePageState extends State<RecherchePage> {
     _verseWatcher?.cancel();
     keywordController.dispose();
     refController.dispose();
+    _keywordFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => _searchHistory = prefs.getStringList(_historyKey) ?? []);
+    }
+  }
+
+  Future<void> _saveToHistory(String keyword) async {
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return;
+    final updated = [trimmed, ..._searchHistory.where((h) => h != trimmed)]
+        .take(_historyMax)
+        .toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_historyKey, updated);
+    if (mounted) setState(() => _searchHistory = updated);
+  }
+
+  Future<void> _clearHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_historyKey);
+    if (mounted) setState(() => _searchHistory = []);
   }
 
   void _subscribeToVerseChanges() {
@@ -100,7 +139,9 @@ class _RecherchePageState extends State<RecherchePage> {
       setState(() {
         _selectedColor = null;
         isSearching = true;
+        _showHistory = false;
       });
+      if (keyword.trim().isNotEmpty) _saveToHistory(keyword.trim());
     }
     query = keyword;
 
@@ -174,6 +215,7 @@ class _RecherchePageState extends State<RecherchePage> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
           child: TextField(
             controller: keywordController,
+            focusNode: _keywordFocus,
             decoration: InputDecoration(
               labelText: 'Rechercher un mot-clé',
               prefixIcon: const Icon(Icons.search),
@@ -188,6 +230,40 @@ class _RecherchePageState extends State<RecherchePage> {
             onChanged: (_) => setState(() {}),
           ),
         ),
+        // ── Historique de recherche ──
+        if (_showHistory && _searchHistory.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    children: _searchHistory
+                        .map((h) => InputChip(
+                              label: Text(h, style: const TextStyle(fontSize: 12)),
+                              onPressed: () {
+                                keywordController.text = h;
+                                searchVerses(h);
+                                _keywordFocus.unfocus();
+                              },
+                              onDeleted: () async {
+                                final updated = List<String>.from(_searchHistory)..remove(h);
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setStringList(_historyKey, updated);
+                                if (mounted) setState(() => _searchHistory = updated);
+                              },
+                            ))
+                        .toList(),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _clearHistory,
+                  child: const Text('Effacer', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
         // ── Accès direct par référence ──
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),

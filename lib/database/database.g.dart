@@ -597,6 +597,18 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
   late final GeneratedColumn<DateTime> reminderTime = GeneratedColumn<DateTime>(
       'reminder_time', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _linkedVerseRefMeta =
+      const VerificationMeta('linkedVerseRef');
+  @override
+  late final GeneratedColumn<String> linkedVerseRef = GeneratedColumn<String>(
+      'linked_verse_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _linkedVerseTextMeta =
+      const VerificationMeta('linkedVerseText');
+  @override
+  late final GeneratedColumn<String> linkedVerseText = GeneratedColumn<String>(
+      'linked_verse_text', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -608,7 +620,9 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
         dateAnswered,
         isAnswered,
         hasReminder,
-        reminderTime
+        reminderTime,
+        linkedVerseRef,
+        linkedVerseText
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -673,6 +687,18 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
           reminderTime.isAcceptableOrUnknown(
               data['reminder_time']!, _reminderTimeMeta));
     }
+    if (data.containsKey('linked_verse_ref')) {
+      context.handle(
+          _linkedVerseRefMeta,
+          linkedVerseRef.isAcceptableOrUnknown(
+              data['linked_verse_ref']!, _linkedVerseRefMeta));
+    }
+    if (data.containsKey('linked_verse_text')) {
+      context.handle(
+          _linkedVerseTextMeta,
+          linkedVerseText.isAcceptableOrUnknown(
+              data['linked_verse_text']!, _linkedVerseTextMeta));
+    }
     return context;
   }
 
@@ -702,6 +728,10 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
           .read(DriftSqlType.bool, data['${effectivePrefix}has_reminder'])!,
       reminderTime: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}reminder_time']),
+      linkedVerseRef: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}linked_verse_ref']),
+      linkedVerseText: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}linked_verse_text']),
     );
   }
 
@@ -722,6 +752,8 @@ class Prayer extends DataClass implements Insertable<Prayer> {
   final bool isAnswered;
   final bool hasReminder;
   final DateTime? reminderTime;
+  final String? linkedVerseRef;
+  final String? linkedVerseText;
   const Prayer(
       {required this.id,
       required this.title,
@@ -732,7 +764,9 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       this.dateAnswered,
       required this.isAnswered,
       required this.hasReminder,
-      this.reminderTime});
+      this.reminderTime,
+      this.linkedVerseRef,
+      this.linkedVerseText});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -753,6 +787,12 @@ class Prayer extends DataClass implements Insertable<Prayer> {
     map['has_reminder'] = Variable<bool>(hasReminder);
     if (!nullToAbsent || reminderTime != null) {
       map['reminder_time'] = Variable<DateTime>(reminderTime);
+    }
+    if (!nullToAbsent || linkedVerseRef != null) {
+      map['linked_verse_ref'] = Variable<String>(linkedVerseRef);
+    }
+    if (!nullToAbsent || linkedVerseText != null) {
+      map['linked_verse_text'] = Variable<String>(linkedVerseText);
     }
     return map;
   }
@@ -777,6 +817,12 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       reminderTime: reminderTime == null && nullToAbsent
           ? const Value.absent()
           : Value(reminderTime),
+      linkedVerseRef: linkedVerseRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedVerseRef),
+      linkedVerseText: linkedVerseText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedVerseText),
     );
   }
 
@@ -794,6 +840,8 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       isAnswered: serializer.fromJson<bool>(json['isAnswered']),
       hasReminder: serializer.fromJson<bool>(json['hasReminder']),
       reminderTime: serializer.fromJson<DateTime?>(json['reminderTime']),
+      linkedVerseRef: serializer.fromJson<String?>(json['linkedVerseRef']),
+      linkedVerseText: serializer.fromJson<String?>(json['linkedVerseText']),
     );
   }
   @override
@@ -810,6 +858,8 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       'isAnswered': serializer.toJson<bool>(isAnswered),
       'hasReminder': serializer.toJson<bool>(hasReminder),
       'reminderTime': serializer.toJson<DateTime?>(reminderTime),
+      'linkedVerseRef': serializer.toJson<String?>(linkedVerseRef),
+      'linkedVerseText': serializer.toJson<String?>(linkedVerseText),
     };
   }
 
@@ -823,7 +873,9 @@ class Prayer extends DataClass implements Insertable<Prayer> {
           Value<DateTime?> dateAnswered = const Value.absent(),
           bool? isAnswered,
           bool? hasReminder,
-          Value<DateTime?> reminderTime = const Value.absent()}) =>
+          Value<DateTime?> reminderTime = const Value.absent(),
+          Value<String?> linkedVerseRef = const Value.absent(),
+          Value<String?> linkedVerseText = const Value.absent()}) =>
       Prayer(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -837,6 +889,11 @@ class Prayer extends DataClass implements Insertable<Prayer> {
         hasReminder: hasReminder ?? this.hasReminder,
         reminderTime:
             reminderTime.present ? reminderTime.value : this.reminderTime,
+        linkedVerseRef:
+            linkedVerseRef.present ? linkedVerseRef.value : this.linkedVerseRef,
+        linkedVerseText: linkedVerseText.present
+            ? linkedVerseText.value
+            : this.linkedVerseText,
       );
   Prayer copyWithCompanion(PrayersCompanion data) {
     return Prayer(
@@ -858,6 +915,12 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       reminderTime: data.reminderTime.present
           ? data.reminderTime.value
           : this.reminderTime,
+      linkedVerseRef: data.linkedVerseRef.present
+          ? data.linkedVerseRef.value
+          : this.linkedVerseRef,
+      linkedVerseText: data.linkedVerseText.present
+          ? data.linkedVerseText.value
+          : this.linkedVerseText,
     );
   }
 
@@ -873,14 +936,27 @@ class Prayer extends DataClass implements Insertable<Prayer> {
           ..write('dateAnswered: $dateAnswered, ')
           ..write('isAnswered: $isAnswered, ')
           ..write('hasReminder: $hasReminder, ')
-          ..write('reminderTime: $reminderTime')
+          ..write('reminderTime: $reminderTime, ')
+          ..write('linkedVerseRef: $linkedVerseRef, ')
+          ..write('linkedVerseText: $linkedVerseText')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, title, description, priority, categoryId,
-      dateAdded, dateAnswered, isAnswered, hasReminder, reminderTime);
+  int get hashCode => Object.hash(
+      id,
+      title,
+      description,
+      priority,
+      categoryId,
+      dateAdded,
+      dateAnswered,
+      isAnswered,
+      hasReminder,
+      reminderTime,
+      linkedVerseRef,
+      linkedVerseText);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -894,7 +970,9 @@ class Prayer extends DataClass implements Insertable<Prayer> {
           other.dateAnswered == this.dateAnswered &&
           other.isAnswered == this.isAnswered &&
           other.hasReminder == this.hasReminder &&
-          other.reminderTime == this.reminderTime);
+          other.reminderTime == this.reminderTime &&
+          other.linkedVerseRef == this.linkedVerseRef &&
+          other.linkedVerseText == this.linkedVerseText);
 }
 
 class PrayersCompanion extends UpdateCompanion<Prayer> {
@@ -908,6 +986,8 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
   final Value<bool> isAnswered;
   final Value<bool> hasReminder;
   final Value<DateTime?> reminderTime;
+  final Value<String?> linkedVerseRef;
+  final Value<String?> linkedVerseText;
   const PrayersCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -919,6 +999,8 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     this.isAnswered = const Value.absent(),
     this.hasReminder = const Value.absent(),
     this.reminderTime = const Value.absent(),
+    this.linkedVerseRef = const Value.absent(),
+    this.linkedVerseText = const Value.absent(),
   });
   PrayersCompanion.insert({
     this.id = const Value.absent(),
@@ -931,6 +1013,8 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     this.isAnswered = const Value.absent(),
     this.hasReminder = const Value.absent(),
     this.reminderTime = const Value.absent(),
+    this.linkedVerseRef = const Value.absent(),
+    this.linkedVerseText = const Value.absent(),
   }) : title = Value(title);
   static Insertable<Prayer> custom({
     Expression<int>? id,
@@ -943,6 +1027,8 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     Expression<bool>? isAnswered,
     Expression<bool>? hasReminder,
     Expression<DateTime>? reminderTime,
+    Expression<String>? linkedVerseRef,
+    Expression<String>? linkedVerseText,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -955,6 +1041,8 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
       if (isAnswered != null) 'is_answered': isAnswered,
       if (hasReminder != null) 'has_reminder': hasReminder,
       if (reminderTime != null) 'reminder_time': reminderTime,
+      if (linkedVerseRef != null) 'linked_verse_ref': linkedVerseRef,
+      if (linkedVerseText != null) 'linked_verse_text': linkedVerseText,
     });
   }
 
@@ -968,7 +1056,9 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
       Value<DateTime?>? dateAnswered,
       Value<bool>? isAnswered,
       Value<bool>? hasReminder,
-      Value<DateTime?>? reminderTime}) {
+      Value<DateTime?>? reminderTime,
+      Value<String?>? linkedVerseRef,
+      Value<String?>? linkedVerseText}) {
     return PrayersCompanion(
       id: id ?? this.id,
       title: title ?? this.title,
@@ -980,6 +1070,8 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
       isAnswered: isAnswered ?? this.isAnswered,
       hasReminder: hasReminder ?? this.hasReminder,
       reminderTime: reminderTime ?? this.reminderTime,
+      linkedVerseRef: linkedVerseRef ?? this.linkedVerseRef,
+      linkedVerseText: linkedVerseText ?? this.linkedVerseText,
     );
   }
 
@@ -1016,6 +1108,12 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     if (reminderTime.present) {
       map['reminder_time'] = Variable<DateTime>(reminderTime.value);
     }
+    if (linkedVerseRef.present) {
+      map['linked_verse_ref'] = Variable<String>(linkedVerseRef.value);
+    }
+    if (linkedVerseText.present) {
+      map['linked_verse_text'] = Variable<String>(linkedVerseText.value);
+    }
     return map;
   }
 
@@ -1031,7 +1129,9 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
           ..write('dateAnswered: $dateAnswered, ')
           ..write('isAnswered: $isAnswered, ')
           ..write('hasReminder: $hasReminder, ')
-          ..write('reminderTime: $reminderTime')
+          ..write('reminderTime: $reminderTime, ')
+          ..write('linkedVerseRef: $linkedVerseRef, ')
+          ..write('linkedVerseText: $linkedVerseText')
           ..write(')'))
         .toString();
   }
@@ -1251,6 +1351,419 @@ class PrayerCategoriesCompanion extends UpdateCompanion<PrayerCategory> {
   }
 }
 
+class $FavoriteCollectionsTable extends FavoriteCollections
+    with TableInfo<$FavoriteCollectionsTable, FavoriteCollection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FavoriteCollectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _colorHexMeta =
+      const VerificationMeta('colorHex');
+  @override
+  late final GeneratedColumn<String> colorHex = GeneratedColumn<String>(
+      'color_hex', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('#4E342E'));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, colorHex];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'favorite_collections';
+  @override
+  VerificationContext validateIntegrity(Insertable<FavoriteCollection> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('color_hex')) {
+      context.handle(_colorHexMeta,
+          colorHex.isAcceptableOrUnknown(data['color_hex']!, _colorHexMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FavoriteCollection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FavoriteCollection(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      colorHex: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}color_hex'])!,
+    );
+  }
+
+  @override
+  $FavoriteCollectionsTable createAlias(String alias) {
+    return $FavoriteCollectionsTable(attachedDatabase, alias);
+  }
+}
+
+class FavoriteCollection extends DataClass
+    implements Insertable<FavoriteCollection> {
+  final int id;
+  final String name;
+  final String colorHex;
+  const FavoriteCollection(
+      {required this.id, required this.name, required this.colorHex});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['color_hex'] = Variable<String>(colorHex);
+    return map;
+  }
+
+  FavoriteCollectionsCompanion toCompanion(bool nullToAbsent) {
+    return FavoriteCollectionsCompanion(
+      id: Value(id),
+      name: Value(name),
+      colorHex: Value(colorHex),
+    );
+  }
+
+  factory FavoriteCollection.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FavoriteCollection(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      colorHex: serializer.fromJson<String>(json['colorHex']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'colorHex': serializer.toJson<String>(colorHex),
+    };
+  }
+
+  FavoriteCollection copyWith({int? id, String? name, String? colorHex}) =>
+      FavoriteCollection(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        colorHex: colorHex ?? this.colorHex,
+      );
+  FavoriteCollection copyWithCompanion(FavoriteCollectionsCompanion data) {
+    return FavoriteCollection(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      colorHex: data.colorHex.present ? data.colorHex.value : this.colorHex,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FavoriteCollection(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('colorHex: $colorHex')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, colorHex);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FavoriteCollection &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.colorHex == this.colorHex);
+}
+
+class FavoriteCollectionsCompanion extends UpdateCompanion<FavoriteCollection> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> colorHex;
+  const FavoriteCollectionsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.colorHex = const Value.absent(),
+  });
+  FavoriteCollectionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.colorHex = const Value.absent(),
+  }) : name = Value(name);
+  static Insertable<FavoriteCollection> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? colorHex,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (colorHex != null) 'color_hex': colorHex,
+    });
+  }
+
+  FavoriteCollectionsCompanion copyWith(
+      {Value<int>? id, Value<String>? name, Value<String>? colorHex}) {
+    return FavoriteCollectionsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      colorHex: colorHex ?? this.colorHex,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (colorHex.present) {
+      map['color_hex'] = Variable<String>(colorHex.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FavoriteCollectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('colorHex: $colorHex')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CollectionVersesTable extends CollectionVerses
+    with TableInfo<$CollectionVersesTable, CollectionVerse> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CollectionVersesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _collectionIdMeta =
+      const VerificationMeta('collectionId');
+  @override
+  late final GeneratedColumn<int> collectionId = GeneratedColumn<int>(
+      'collection_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _verseIdMeta =
+      const VerificationMeta('verseId');
+  @override
+  late final GeneratedColumn<int> verseId = GeneratedColumn<int>(
+      'verse_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [collectionId, verseId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'collection_verses';
+  @override
+  VerificationContext validateIntegrity(Insertable<CollectionVerse> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('collection_id')) {
+      context.handle(
+          _collectionIdMeta,
+          collectionId.isAcceptableOrUnknown(
+              data['collection_id']!, _collectionIdMeta));
+    } else if (isInserting) {
+      context.missing(_collectionIdMeta);
+    }
+    if (data.containsKey('verse_id')) {
+      context.handle(_verseIdMeta,
+          verseId.isAcceptableOrUnknown(data['verse_id']!, _verseIdMeta));
+    } else if (isInserting) {
+      context.missing(_verseIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {collectionId, verseId};
+  @override
+  CollectionVerse map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CollectionVerse(
+      collectionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}collection_id'])!,
+      verseId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}verse_id'])!,
+    );
+  }
+
+  @override
+  $CollectionVersesTable createAlias(String alias) {
+    return $CollectionVersesTable(attachedDatabase, alias);
+  }
+}
+
+class CollectionVerse extends DataClass implements Insertable<CollectionVerse> {
+  final int collectionId;
+  final int verseId;
+  const CollectionVerse({required this.collectionId, required this.verseId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['collection_id'] = Variable<int>(collectionId);
+    map['verse_id'] = Variable<int>(verseId);
+    return map;
+  }
+
+  CollectionVersesCompanion toCompanion(bool nullToAbsent) {
+    return CollectionVersesCompanion(
+      collectionId: Value(collectionId),
+      verseId: Value(verseId),
+    );
+  }
+
+  factory CollectionVerse.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CollectionVerse(
+      collectionId: serializer.fromJson<int>(json['collectionId']),
+      verseId: serializer.fromJson<int>(json['verseId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'collectionId': serializer.toJson<int>(collectionId),
+      'verseId': serializer.toJson<int>(verseId),
+    };
+  }
+
+  CollectionVerse copyWith({int? collectionId, int? verseId}) =>
+      CollectionVerse(
+        collectionId: collectionId ?? this.collectionId,
+        verseId: verseId ?? this.verseId,
+      );
+  CollectionVerse copyWithCompanion(CollectionVersesCompanion data) {
+    return CollectionVerse(
+      collectionId: data.collectionId.present
+          ? data.collectionId.value
+          : this.collectionId,
+      verseId: data.verseId.present ? data.verseId.value : this.verseId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CollectionVerse(')
+          ..write('collectionId: $collectionId, ')
+          ..write('verseId: $verseId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(collectionId, verseId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CollectionVerse &&
+          other.collectionId == this.collectionId &&
+          other.verseId == this.verseId);
+}
+
+class CollectionVersesCompanion extends UpdateCompanion<CollectionVerse> {
+  final Value<int> collectionId;
+  final Value<int> verseId;
+  final Value<int> rowid;
+  const CollectionVersesCompanion({
+    this.collectionId = const Value.absent(),
+    this.verseId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CollectionVersesCompanion.insert({
+    required int collectionId,
+    required int verseId,
+    this.rowid = const Value.absent(),
+  })  : collectionId = Value(collectionId),
+        verseId = Value(verseId);
+  static Insertable<CollectionVerse> custom({
+    Expression<int>? collectionId,
+    Expression<int>? verseId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (collectionId != null) 'collection_id': collectionId,
+      if (verseId != null) 'verse_id': verseId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CollectionVersesCompanion copyWith(
+      {Value<int>? collectionId, Value<int>? verseId, Value<int>? rowid}) {
+    return CollectionVersesCompanion(
+      collectionId: collectionId ?? this.collectionId,
+      verseId: verseId ?? this.verseId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (collectionId.present) {
+      map['collection_id'] = Variable<int>(collectionId.value);
+    }
+    if (verseId.present) {
+      map['verse_id'] = Variable<int>(verseId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CollectionVersesCompanion(')
+          ..write('collectionId: $collectionId, ')
+          ..write('verseId: $verseId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1258,12 +1771,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PrayersTable prayers = $PrayersTable(this);
   late final $PrayerCategoriesTable prayerCategories =
       $PrayerCategoriesTable(this);
+  late final $FavoriteCollectionsTable favoriteCollections =
+      $FavoriteCollectionsTable(this);
+  late final $CollectionVersesTable collectionVerses =
+      $CollectionVersesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [verses, prayers, prayerCategories];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        verses,
+        prayers,
+        prayerCategories,
+        favoriteCollections,
+        collectionVerses
+      ];
 }
 
 typedef $$VersesTableCreateCompanionBuilder = VersesCompanion Function({
@@ -1514,6 +2036,8 @@ typedef $$PrayersTableCreateCompanionBuilder = PrayersCompanion Function({
   Value<bool> isAnswered,
   Value<bool> hasReminder,
   Value<DateTime?> reminderTime,
+  Value<String?> linkedVerseRef,
+  Value<String?> linkedVerseText,
 });
 typedef $$PrayersTableUpdateCompanionBuilder = PrayersCompanion Function({
   Value<int> id,
@@ -1526,6 +2050,8 @@ typedef $$PrayersTableUpdateCompanionBuilder = PrayersCompanion Function({
   Value<bool> isAnswered,
   Value<bool> hasReminder,
   Value<DateTime?> reminderTime,
+  Value<String?> linkedVerseRef,
+  Value<String?> linkedVerseText,
 });
 
 class $$PrayersTableFilterComposer
@@ -1566,6 +2092,14 @@ class $$PrayersTableFilterComposer
 
   ColumnFilters<DateTime> get reminderTime => $composableBuilder(
       column: $table.reminderTime, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedVerseRef => $composableBuilder(
+      column: $table.linkedVerseRef,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedVerseText => $composableBuilder(
+      column: $table.linkedVerseText,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$PrayersTableOrderingComposer
@@ -1608,6 +2142,14 @@ class $$PrayersTableOrderingComposer
   ColumnOrderings<DateTime> get reminderTime => $composableBuilder(
       column: $table.reminderTime,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedVerseRef => $composableBuilder(
+      column: $table.linkedVerseRef,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedVerseText => $composableBuilder(
+      column: $table.linkedVerseText,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$PrayersTableAnnotationComposer
@@ -1648,6 +2190,12 @@ class $$PrayersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get reminderTime => $composableBuilder(
       column: $table.reminderTime, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedVerseRef => $composableBuilder(
+      column: $table.linkedVerseRef, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedVerseText => $composableBuilder(
+      column: $table.linkedVerseText, builder: (column) => column);
 }
 
 class $$PrayersTableTableManager extends RootTableManager<
@@ -1683,6 +2231,8 @@ class $$PrayersTableTableManager extends RootTableManager<
             Value<bool> isAnswered = const Value.absent(),
             Value<bool> hasReminder = const Value.absent(),
             Value<DateTime?> reminderTime = const Value.absent(),
+            Value<String?> linkedVerseRef = const Value.absent(),
+            Value<String?> linkedVerseText = const Value.absent(),
           }) =>
               PrayersCompanion(
             id: id,
@@ -1695,6 +2245,8 @@ class $$PrayersTableTableManager extends RootTableManager<
             isAnswered: isAnswered,
             hasReminder: hasReminder,
             reminderTime: reminderTime,
+            linkedVerseRef: linkedVerseRef,
+            linkedVerseText: linkedVerseText,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -1707,6 +2259,8 @@ class $$PrayersTableTableManager extends RootTableManager<
             Value<bool> isAnswered = const Value.absent(),
             Value<bool> hasReminder = const Value.absent(),
             Value<DateTime?> reminderTime = const Value.absent(),
+            Value<String?> linkedVerseRef = const Value.absent(),
+            Value<String?> linkedVerseText = const Value.absent(),
           }) =>
               PrayersCompanion.insert(
             id: id,
@@ -1719,6 +2273,8 @@ class $$PrayersTableTableManager extends RootTableManager<
             isAnswered: isAnswered,
             hasReminder: hasReminder,
             reminderTime: reminderTime,
+            linkedVerseRef: linkedVerseRef,
+            linkedVerseText: linkedVerseText,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -1877,6 +2433,278 @@ typedef $$PrayerCategoriesTableProcessedTableManager = ProcessedTableManager<
     ),
     PrayerCategory,
     PrefetchHooks Function()>;
+typedef $$FavoriteCollectionsTableCreateCompanionBuilder
+    = FavoriteCollectionsCompanion Function({
+  Value<int> id,
+  required String name,
+  Value<String> colorHex,
+});
+typedef $$FavoriteCollectionsTableUpdateCompanionBuilder
+    = FavoriteCollectionsCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> colorHex,
+});
+
+class $$FavoriteCollectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $FavoriteCollectionsTable> {
+  $$FavoriteCollectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get colorHex => $composableBuilder(
+      column: $table.colorHex, builder: (column) => ColumnFilters(column));
+}
+
+class $$FavoriteCollectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FavoriteCollectionsTable> {
+  $$FavoriteCollectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get colorHex => $composableBuilder(
+      column: $table.colorHex, builder: (column) => ColumnOrderings(column));
+}
+
+class $$FavoriteCollectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FavoriteCollectionsTable> {
+  $$FavoriteCollectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get colorHex =>
+      $composableBuilder(column: $table.colorHex, builder: (column) => column);
+}
+
+class $$FavoriteCollectionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $FavoriteCollectionsTable,
+    FavoriteCollection,
+    $$FavoriteCollectionsTableFilterComposer,
+    $$FavoriteCollectionsTableOrderingComposer,
+    $$FavoriteCollectionsTableAnnotationComposer,
+    $$FavoriteCollectionsTableCreateCompanionBuilder,
+    $$FavoriteCollectionsTableUpdateCompanionBuilder,
+    (
+      FavoriteCollection,
+      BaseReferences<_$AppDatabase, $FavoriteCollectionsTable,
+          FavoriteCollection>
+    ),
+    FavoriteCollection,
+    PrefetchHooks Function()> {
+  $$FavoriteCollectionsTableTableManager(
+      _$AppDatabase db, $FavoriteCollectionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FavoriteCollectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FavoriteCollectionsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FavoriteCollectionsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> colorHex = const Value.absent(),
+          }) =>
+              FavoriteCollectionsCompanion(
+            id: id,
+            name: name,
+            colorHex: colorHex,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String name,
+            Value<String> colorHex = const Value.absent(),
+          }) =>
+              FavoriteCollectionsCompanion.insert(
+            id: id,
+            name: name,
+            colorHex: colorHex,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$FavoriteCollectionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $FavoriteCollectionsTable,
+    FavoriteCollection,
+    $$FavoriteCollectionsTableFilterComposer,
+    $$FavoriteCollectionsTableOrderingComposer,
+    $$FavoriteCollectionsTableAnnotationComposer,
+    $$FavoriteCollectionsTableCreateCompanionBuilder,
+    $$FavoriteCollectionsTableUpdateCompanionBuilder,
+    (
+      FavoriteCollection,
+      BaseReferences<_$AppDatabase, $FavoriteCollectionsTable,
+          FavoriteCollection>
+    ),
+    FavoriteCollection,
+    PrefetchHooks Function()>;
+typedef $$CollectionVersesTableCreateCompanionBuilder
+    = CollectionVersesCompanion Function({
+  required int collectionId,
+  required int verseId,
+  Value<int> rowid,
+});
+typedef $$CollectionVersesTableUpdateCompanionBuilder
+    = CollectionVersesCompanion Function({
+  Value<int> collectionId,
+  Value<int> verseId,
+  Value<int> rowid,
+});
+
+class $$CollectionVersesTableFilterComposer
+    extends Composer<_$AppDatabase, $CollectionVersesTable> {
+  $$CollectionVersesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get collectionId => $composableBuilder(
+      column: $table.collectionId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get verseId => $composableBuilder(
+      column: $table.verseId, builder: (column) => ColumnFilters(column));
+}
+
+class $$CollectionVersesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CollectionVersesTable> {
+  $$CollectionVersesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get collectionId => $composableBuilder(
+      column: $table.collectionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get verseId => $composableBuilder(
+      column: $table.verseId, builder: (column) => ColumnOrderings(column));
+}
+
+class $$CollectionVersesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CollectionVersesTable> {
+  $$CollectionVersesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get collectionId => $composableBuilder(
+      column: $table.collectionId, builder: (column) => column);
+
+  GeneratedColumn<int> get verseId =>
+      $composableBuilder(column: $table.verseId, builder: (column) => column);
+}
+
+class $$CollectionVersesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $CollectionVersesTable,
+    CollectionVerse,
+    $$CollectionVersesTableFilterComposer,
+    $$CollectionVersesTableOrderingComposer,
+    $$CollectionVersesTableAnnotationComposer,
+    $$CollectionVersesTableCreateCompanionBuilder,
+    $$CollectionVersesTableUpdateCompanionBuilder,
+    (
+      CollectionVerse,
+      BaseReferences<_$AppDatabase, $CollectionVersesTable, CollectionVerse>
+    ),
+    CollectionVerse,
+    PrefetchHooks Function()> {
+  $$CollectionVersesTableTableManager(
+      _$AppDatabase db, $CollectionVersesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CollectionVersesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CollectionVersesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CollectionVersesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> collectionId = const Value.absent(),
+            Value<int> verseId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              CollectionVersesCompanion(
+            collectionId: collectionId,
+            verseId: verseId,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required int collectionId,
+            required int verseId,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              CollectionVersesCompanion.insert(
+            collectionId: collectionId,
+            verseId: verseId,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$CollectionVersesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $CollectionVersesTable,
+    CollectionVerse,
+    $$CollectionVersesTableFilterComposer,
+    $$CollectionVersesTableOrderingComposer,
+    $$CollectionVersesTableAnnotationComposer,
+    $$CollectionVersesTableCreateCompanionBuilder,
+    $$CollectionVersesTableUpdateCompanionBuilder,
+    (
+      CollectionVerse,
+      BaseReferences<_$AppDatabase, $CollectionVersesTable, CollectionVerse>
+    ),
+    CollectionVerse,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1887,4 +2715,8 @@ class $AppDatabaseManager {
       $$PrayersTableTableManager(_db, _db.prayers);
   $$PrayerCategoriesTableTableManager get prayerCategories =>
       $$PrayerCategoriesTableTableManager(_db, _db.prayerCategories);
+  $$FavoriteCollectionsTableTableManager get favoriteCollections =>
+      $$FavoriteCollectionsTableTableManager(_db, _db.favoriteCollections);
+  $$CollectionVersesTableTableManager get collectionVerses =>
+      $$CollectionVersesTableTableManager(_db, _db.collectionVerses);
 }
