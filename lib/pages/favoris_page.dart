@@ -136,6 +136,7 @@ class _FavorisPageState extends State<FavorisPage>
       itemBuilder: (context, i) {
         final verse = _annotatedVerses[i];
         final highlight = parseNoteColor(verse.noteColor);
+        final textOverride = readableTextOn(highlight, context);
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           color: highlight,
@@ -153,14 +154,16 @@ class _FavorisPageState extends State<FavorisPage>
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: textOverride ??
+                          Theme.of(context).colorScheme.primary,
                       letterSpacing: 0.4,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     verse.textContent,
-                    style: GoogleFonts.lora(fontSize: 14, height: 1.55),
+                    style: GoogleFonts.lora(
+                        fontSize: 14, height: 1.55, color: textOverride),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -466,6 +469,7 @@ class _CollectionDetailPage extends StatelessWidget {
             itemBuilder: (context, i) {
               final verse = verses[i];
               final highlight = parseNoteColor(verse.noteColor);
+              final textOverride = readableTextOn(highlight, context);
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 color: highlight,
@@ -489,14 +493,18 @@ class _CollectionDetailPage extends StatelessWidget {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
-                                  color: Theme.of(context).colorScheme.primary,
+                                  color: textOverride ??
+                                      Theme.of(context).colorScheme.primary,
                                   letterSpacing: 0.4,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 verse.textContent,
-                                style: GoogleFonts.lora(fontSize: 14, height: 1.55),
+                                style: GoogleFonts.lora(
+                                    fontSize: 14,
+                                    height: 1.55,
+                                    color: textOverride),
                                 maxLines: 4,
                                 overflow: TextOverflow.ellipsis,
                               ),

@@ -229,20 +229,27 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
               ),
               // ---- Note personnelle ----
               if (_currentVerse!.noteText != null && _currentVerse!.noteText!.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(top: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: parseNoteColor(_currentVerse!.noteColor) ??
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _currentVerse!.noteText!,
-                    style: const TextStyle(fontStyle: FontStyle.italic),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+                Builder(builder: (context) {
+                  final highlight = parseNoteColor(_currentVerse!.noteColor);
+                  final textOverride = readableTextOn(highlight, context);
+                  return Container(
+                    margin: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: highlight ??
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _currentVerse!.noteText!,
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: textOverride,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }),
               const SizedBox(height: 28),
               // ---- Actions ----
               Row(

@@ -15,8 +15,14 @@ class Prayers extends Table {
   BoolColumn get isAnswered => boolean().withDefault(const Constant(false))();
   BoolColumn get hasReminder => boolean().withDefault(const Constant(false))();
   DateTimeColumn get reminderTime => dateTime().nullable()();
-  TextColumn get linkedVerseRef => text().nullable()();  // ex: "Jean 3:16"
-  TextColumn get linkedVerseText => text().nullable()();
+}
+
+class PrayerVerses extends Table {
+  IntColumn get prayerId => integer()();
+  IntColumn get verseId => integer()();
+
+  @override
+  Set<Column> get primaryKey => {prayerId, verseId};
 }
 
 class FavoriteCollections extends Table {
@@ -52,7 +58,7 @@ class Verses extends Table {
   BoolColumn get isChapterRead => boolean().withDefault(const Constant(false))();
 }
 
-@DriftDatabase(tables: [Verses, Prayers, PrayerCategories, FavoriteCollections, CollectionVerses])
+@DriftDatabase(tables: [Verses, Prayers, PrayerCategories, FavoriteCollections, CollectionVerses, PrayerVerses])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -60,7 +66,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   static const _defaultCategories = [
     ('Famille', '0xFF42A5F5'),
@@ -123,6 +129,22 @@ class AppDatabase extends _$AppDatabase {
             verse_id INTEGER NOT NULL,
             PRIMARY KEY (collection_id, verse_id)
           )''');
+      }
+      if (from < 6) {
+        // Migration v5 → v6 : table many-to-many prière↔verset, remplace
+        // les anciens champs linked_verse_ref / linked_verse_text.
+        await m.create(prayerVerses);
+        // Migrer les liens existants (1 verset par prière) en faisant
+        // correspondre "Livre Chapitre:Verset" à l'id du verset.
+        await customStatement('''
+          INSERT OR IGNORE INTO prayer_verses (prayer_id, verse_id)
+          SELECT p.id, v.id
+          FROM prayers p
+          JOIN verses v ON (v.book || ' ' || v.chapter || ':' || v.verse) = p.linked_verse_ref
+          WHERE p.linked_verse_ref IS NOT NULL
+        ''');
+        // Supprimer les colonnes obsolètes en recréant la table sans elles.
+        await m.alterTable(TableMigration(prayers));
       }
     },
   );
@@ -345,8 +367,6 @@ class AppDatabase extends _$AppDatabase {
     int? categoryId,
     bool hasReminder = false,
     DateTime? reminderTime,
-    String? linkedVerseRef,
-    String? linkedVerseText,
   }) {
     return into(prayers).insert(PrayersCompanion(
       title: Value(title),
@@ -355,9 +375,57 @@ class AppDatabase extends _$AppDatabase {
       categoryId: Value(categoryId),
       hasReminder: Value(hasReminder),
       reminderTime: Value(reminderTime),
-      linkedVerseRef: Value(linkedVerseRef),
-      linkedVerseText: Value(linkedVerseText),
     ));
+  }
+
+  // === Liaison prière ↔ versets (many-to-many) ===
+
+  Future<void> addVerseToPrayer(int prayerId, int verseId) =>
+      into(prayerVerses).insertOnConflictUpdate(
+        PrayerVersesCompanion(
+          prayerId: Value(prayerId),
+          verseId: Value(verseId),
+        ),
+      );
+
+  Future<void> removeVerseFromPrayer(int prayerId, int verseId) =>
+      (delete(prayerVerses)
+            ..where((t) =>
+                t.prayerId.equals(prayerId) & t.verseId.equals(verseId)))
+          .go();
+
+  Stream<List<Verse>> watchPrayerVerses(int prayerId) {
+    final query = select(verses).join([
+      innerJoin(
+        prayerVerses,
+        prayerVerses.verseId.equalsExp(verses.id),
+      ),
+    ])
+      ..where(prayerVerses.prayerId.equals(prayerId))
+      ..orderBy([
+        OrderingTerm(expression: verses.book),
+        OrderingTerm(expression: verses.chapter),
+        OrderingTerm(expression: verses.verse),
+      ]);
+    return query.watch().map(
+        (rows) => rows.map((r) => r.readTable(verses)).toList());
+  }
+
+  Future<List<Verse>> getPrayerVerses(int prayerId) async {
+    final query = select(verses).join([
+      innerJoin(
+        prayerVerses,
+        prayerVerses.verseId.equalsExp(verses.id),
+      ),
+    ])
+      ..where(prayerVerses.prayerId.equals(prayerId))
+      ..orderBy([
+        OrderingTerm(expression: verses.book),
+        OrderingTerm(expression: verses.chapter),
+        OrderingTerm(expression: verses.verse),
+      ]);
+    final rows = await query.get();
+    return rows.map((r) => r.readTable(verses)).toList();
   }
 
   Future<void> updatePrayer(Prayer prayer) async {

@@ -62,16 +62,25 @@ class _SettingsPageState extends State<SettingsPage> {
           'note': v.noteText,
           'color': v.noteColor,
         }).toList(),
-        'prayers': prayers.map((p) => {
-          'title': p.title,
-          'description': p.description,
-          'priority': p.priority,
-          'is_answered': p.isAnswered,
-          'date_added': p.dateAdded.toIso8601String(),
-          'date_answered': p.dateAnswered?.toIso8601String(),
-          'linked_verse': p.linkedVerseRef,
-          'linked_verse_text': p.linkedVerseText,
-        }).toList(),
+        'prayers': await Future.wait(prayers.map((p) async {
+          final linked = await DatabaseService.db.getPrayerVerses(p.id);
+          return {
+            'title': p.title,
+            'description': p.description,
+            'priority': p.priority,
+            'is_answered': p.isAnswered,
+            'date_added': p.dateAdded.toIso8601String(),
+            'date_answered': p.dateAnswered?.toIso8601String(),
+            'linked_verses': linked
+                .map((v) => {
+                      'book': v.book,
+                      'chapter': v.chapter,
+                      'verse': v.verse,
+                      'text': v.textContent,
+                    })
+                .toList(),
+          };
+        })),
       };
 
       final json = const JsonEncoder.withIndent('  ').convert(data);

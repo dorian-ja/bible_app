@@ -23,3 +23,14 @@ Color? parseNoteColor(String? hex) {
   if (value == null) return null;
   return Color(0xFF000000 | value);
 }
+
+/// Renvoie une couleur de texte lisible sur un fond surligné.
+///
+/// Les couleurs de surlignage [kNoteColorOptions] sont toutes des pastels
+/// clairs : du texte clair (mode sombre par défaut) y est illisible. Si le
+/// fond est défini on force une teinte sombre ; sinon on rend la couleur
+/// par défaut du thème pour rester adaptatif.
+Color? readableTextOn(Color? highlight, BuildContext context) {
+  if (highlight == null) return null;
+  return const Color(0xDD000000); // ~87 % opaque, comme un onSurface clair
+}

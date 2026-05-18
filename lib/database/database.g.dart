@@ -597,18 +597,6 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
   late final GeneratedColumn<DateTime> reminderTime = GeneratedColumn<DateTime>(
       'reminder_time', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
-  static const VerificationMeta _linkedVerseRefMeta =
-      const VerificationMeta('linkedVerseRef');
-  @override
-  late final GeneratedColumn<String> linkedVerseRef = GeneratedColumn<String>(
-      'linked_verse_ref', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _linkedVerseTextMeta =
-      const VerificationMeta('linkedVerseText');
-  @override
-  late final GeneratedColumn<String> linkedVerseText = GeneratedColumn<String>(
-      'linked_verse_text', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -620,9 +608,7 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
         dateAnswered,
         isAnswered,
         hasReminder,
-        reminderTime,
-        linkedVerseRef,
-        linkedVerseText
+        reminderTime
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -687,18 +673,6 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
           reminderTime.isAcceptableOrUnknown(
               data['reminder_time']!, _reminderTimeMeta));
     }
-    if (data.containsKey('linked_verse_ref')) {
-      context.handle(
-          _linkedVerseRefMeta,
-          linkedVerseRef.isAcceptableOrUnknown(
-              data['linked_verse_ref']!, _linkedVerseRefMeta));
-    }
-    if (data.containsKey('linked_verse_text')) {
-      context.handle(
-          _linkedVerseTextMeta,
-          linkedVerseText.isAcceptableOrUnknown(
-              data['linked_verse_text']!, _linkedVerseTextMeta));
-    }
     return context;
   }
 
@@ -728,10 +702,6 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, Prayer> {
           .read(DriftSqlType.bool, data['${effectivePrefix}has_reminder'])!,
       reminderTime: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}reminder_time']),
-      linkedVerseRef: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}linked_verse_ref']),
-      linkedVerseText: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}linked_verse_text']),
     );
   }
 
@@ -752,8 +722,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
   final bool isAnswered;
   final bool hasReminder;
   final DateTime? reminderTime;
-  final String? linkedVerseRef;
-  final String? linkedVerseText;
   const Prayer(
       {required this.id,
       required this.title,
@@ -764,9 +732,7 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       this.dateAnswered,
       required this.isAnswered,
       required this.hasReminder,
-      this.reminderTime,
-      this.linkedVerseRef,
-      this.linkedVerseText});
+      this.reminderTime});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -787,12 +753,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
     map['has_reminder'] = Variable<bool>(hasReminder);
     if (!nullToAbsent || reminderTime != null) {
       map['reminder_time'] = Variable<DateTime>(reminderTime);
-    }
-    if (!nullToAbsent || linkedVerseRef != null) {
-      map['linked_verse_ref'] = Variable<String>(linkedVerseRef);
-    }
-    if (!nullToAbsent || linkedVerseText != null) {
-      map['linked_verse_text'] = Variable<String>(linkedVerseText);
     }
     return map;
   }
@@ -817,12 +777,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       reminderTime: reminderTime == null && nullToAbsent
           ? const Value.absent()
           : Value(reminderTime),
-      linkedVerseRef: linkedVerseRef == null && nullToAbsent
-          ? const Value.absent()
-          : Value(linkedVerseRef),
-      linkedVerseText: linkedVerseText == null && nullToAbsent
-          ? const Value.absent()
-          : Value(linkedVerseText),
     );
   }
 
@@ -840,8 +794,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       isAnswered: serializer.fromJson<bool>(json['isAnswered']),
       hasReminder: serializer.fromJson<bool>(json['hasReminder']),
       reminderTime: serializer.fromJson<DateTime?>(json['reminderTime']),
-      linkedVerseRef: serializer.fromJson<String?>(json['linkedVerseRef']),
-      linkedVerseText: serializer.fromJson<String?>(json['linkedVerseText']),
     );
   }
   @override
@@ -858,8 +810,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       'isAnswered': serializer.toJson<bool>(isAnswered),
       'hasReminder': serializer.toJson<bool>(hasReminder),
       'reminderTime': serializer.toJson<DateTime?>(reminderTime),
-      'linkedVerseRef': serializer.toJson<String?>(linkedVerseRef),
-      'linkedVerseText': serializer.toJson<String?>(linkedVerseText),
     };
   }
 
@@ -873,9 +823,7 @@ class Prayer extends DataClass implements Insertable<Prayer> {
           Value<DateTime?> dateAnswered = const Value.absent(),
           bool? isAnswered,
           bool? hasReminder,
-          Value<DateTime?> reminderTime = const Value.absent(),
-          Value<String?> linkedVerseRef = const Value.absent(),
-          Value<String?> linkedVerseText = const Value.absent()}) =>
+          Value<DateTime?> reminderTime = const Value.absent()}) =>
       Prayer(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -889,11 +837,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
         hasReminder: hasReminder ?? this.hasReminder,
         reminderTime:
             reminderTime.present ? reminderTime.value : this.reminderTime,
-        linkedVerseRef:
-            linkedVerseRef.present ? linkedVerseRef.value : this.linkedVerseRef,
-        linkedVerseText: linkedVerseText.present
-            ? linkedVerseText.value
-            : this.linkedVerseText,
       );
   Prayer copyWithCompanion(PrayersCompanion data) {
     return Prayer(
@@ -915,12 +858,6 @@ class Prayer extends DataClass implements Insertable<Prayer> {
       reminderTime: data.reminderTime.present
           ? data.reminderTime.value
           : this.reminderTime,
-      linkedVerseRef: data.linkedVerseRef.present
-          ? data.linkedVerseRef.value
-          : this.linkedVerseRef,
-      linkedVerseText: data.linkedVerseText.present
-          ? data.linkedVerseText.value
-          : this.linkedVerseText,
     );
   }
 
@@ -936,27 +873,14 @@ class Prayer extends DataClass implements Insertable<Prayer> {
           ..write('dateAnswered: $dateAnswered, ')
           ..write('isAnswered: $isAnswered, ')
           ..write('hasReminder: $hasReminder, ')
-          ..write('reminderTime: $reminderTime, ')
-          ..write('linkedVerseRef: $linkedVerseRef, ')
-          ..write('linkedVerseText: $linkedVerseText')
+          ..write('reminderTime: $reminderTime')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      title,
-      description,
-      priority,
-      categoryId,
-      dateAdded,
-      dateAnswered,
-      isAnswered,
-      hasReminder,
-      reminderTime,
-      linkedVerseRef,
-      linkedVerseText);
+  int get hashCode => Object.hash(id, title, description, priority, categoryId,
+      dateAdded, dateAnswered, isAnswered, hasReminder, reminderTime);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -970,9 +894,7 @@ class Prayer extends DataClass implements Insertable<Prayer> {
           other.dateAnswered == this.dateAnswered &&
           other.isAnswered == this.isAnswered &&
           other.hasReminder == this.hasReminder &&
-          other.reminderTime == this.reminderTime &&
-          other.linkedVerseRef == this.linkedVerseRef &&
-          other.linkedVerseText == this.linkedVerseText);
+          other.reminderTime == this.reminderTime);
 }
 
 class PrayersCompanion extends UpdateCompanion<Prayer> {
@@ -986,8 +908,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
   final Value<bool> isAnswered;
   final Value<bool> hasReminder;
   final Value<DateTime?> reminderTime;
-  final Value<String?> linkedVerseRef;
-  final Value<String?> linkedVerseText;
   const PrayersCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -999,8 +919,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     this.isAnswered = const Value.absent(),
     this.hasReminder = const Value.absent(),
     this.reminderTime = const Value.absent(),
-    this.linkedVerseRef = const Value.absent(),
-    this.linkedVerseText = const Value.absent(),
   });
   PrayersCompanion.insert({
     this.id = const Value.absent(),
@@ -1013,8 +931,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     this.isAnswered = const Value.absent(),
     this.hasReminder = const Value.absent(),
     this.reminderTime = const Value.absent(),
-    this.linkedVerseRef = const Value.absent(),
-    this.linkedVerseText = const Value.absent(),
   }) : title = Value(title);
   static Insertable<Prayer> custom({
     Expression<int>? id,
@@ -1027,8 +943,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     Expression<bool>? isAnswered,
     Expression<bool>? hasReminder,
     Expression<DateTime>? reminderTime,
-    Expression<String>? linkedVerseRef,
-    Expression<String>? linkedVerseText,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1041,8 +955,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
       if (isAnswered != null) 'is_answered': isAnswered,
       if (hasReminder != null) 'has_reminder': hasReminder,
       if (reminderTime != null) 'reminder_time': reminderTime,
-      if (linkedVerseRef != null) 'linked_verse_ref': linkedVerseRef,
-      if (linkedVerseText != null) 'linked_verse_text': linkedVerseText,
     });
   }
 
@@ -1056,9 +968,7 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
       Value<DateTime?>? dateAnswered,
       Value<bool>? isAnswered,
       Value<bool>? hasReminder,
-      Value<DateTime?>? reminderTime,
-      Value<String?>? linkedVerseRef,
-      Value<String?>? linkedVerseText}) {
+      Value<DateTime?>? reminderTime}) {
     return PrayersCompanion(
       id: id ?? this.id,
       title: title ?? this.title,
@@ -1070,8 +980,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
       isAnswered: isAnswered ?? this.isAnswered,
       hasReminder: hasReminder ?? this.hasReminder,
       reminderTime: reminderTime ?? this.reminderTime,
-      linkedVerseRef: linkedVerseRef ?? this.linkedVerseRef,
-      linkedVerseText: linkedVerseText ?? this.linkedVerseText,
     );
   }
 
@@ -1108,12 +1016,6 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
     if (reminderTime.present) {
       map['reminder_time'] = Variable<DateTime>(reminderTime.value);
     }
-    if (linkedVerseRef.present) {
-      map['linked_verse_ref'] = Variable<String>(linkedVerseRef.value);
-    }
-    if (linkedVerseText.present) {
-      map['linked_verse_text'] = Variable<String>(linkedVerseText.value);
-    }
     return map;
   }
 
@@ -1129,9 +1031,7 @@ class PrayersCompanion extends UpdateCompanion<Prayer> {
           ..write('dateAnswered: $dateAnswered, ')
           ..write('isAnswered: $isAnswered, ')
           ..write('hasReminder: $hasReminder, ')
-          ..write('reminderTime: $reminderTime, ')
-          ..write('linkedVerseRef: $linkedVerseRef, ')
-          ..write('linkedVerseText: $linkedVerseText')
+          ..write('reminderTime: $reminderTime')
           ..write(')'))
         .toString();
   }
@@ -1764,6 +1664,198 @@ class CollectionVersesCompanion extends UpdateCompanion<CollectionVerse> {
   }
 }
 
+class $PrayerVersesTable extends PrayerVerses
+    with TableInfo<$PrayerVersesTable, PrayerVerse> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PrayerVersesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _prayerIdMeta =
+      const VerificationMeta('prayerId');
+  @override
+  late final GeneratedColumn<int> prayerId = GeneratedColumn<int>(
+      'prayer_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _verseIdMeta =
+      const VerificationMeta('verseId');
+  @override
+  late final GeneratedColumn<int> verseId = GeneratedColumn<int>(
+      'verse_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [prayerId, verseId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'prayer_verses';
+  @override
+  VerificationContext validateIntegrity(Insertable<PrayerVerse> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('prayer_id')) {
+      context.handle(_prayerIdMeta,
+          prayerId.isAcceptableOrUnknown(data['prayer_id']!, _prayerIdMeta));
+    } else if (isInserting) {
+      context.missing(_prayerIdMeta);
+    }
+    if (data.containsKey('verse_id')) {
+      context.handle(_verseIdMeta,
+          verseId.isAcceptableOrUnknown(data['verse_id']!, _verseIdMeta));
+    } else if (isInserting) {
+      context.missing(_verseIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {prayerId, verseId};
+  @override
+  PrayerVerse map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PrayerVerse(
+      prayerId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}prayer_id'])!,
+      verseId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}verse_id'])!,
+    );
+  }
+
+  @override
+  $PrayerVersesTable createAlias(String alias) {
+    return $PrayerVersesTable(attachedDatabase, alias);
+  }
+}
+
+class PrayerVerse extends DataClass implements Insertable<PrayerVerse> {
+  final int prayerId;
+  final int verseId;
+  const PrayerVerse({required this.prayerId, required this.verseId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['prayer_id'] = Variable<int>(prayerId);
+    map['verse_id'] = Variable<int>(verseId);
+    return map;
+  }
+
+  PrayerVersesCompanion toCompanion(bool nullToAbsent) {
+    return PrayerVersesCompanion(
+      prayerId: Value(prayerId),
+      verseId: Value(verseId),
+    );
+  }
+
+  factory PrayerVerse.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PrayerVerse(
+      prayerId: serializer.fromJson<int>(json['prayerId']),
+      verseId: serializer.fromJson<int>(json['verseId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'prayerId': serializer.toJson<int>(prayerId),
+      'verseId': serializer.toJson<int>(verseId),
+    };
+  }
+
+  PrayerVerse copyWith({int? prayerId, int? verseId}) => PrayerVerse(
+        prayerId: prayerId ?? this.prayerId,
+        verseId: verseId ?? this.verseId,
+      );
+  PrayerVerse copyWithCompanion(PrayerVersesCompanion data) {
+    return PrayerVerse(
+      prayerId: data.prayerId.present ? data.prayerId.value : this.prayerId,
+      verseId: data.verseId.present ? data.verseId.value : this.verseId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrayerVerse(')
+          ..write('prayerId: $prayerId, ')
+          ..write('verseId: $verseId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(prayerId, verseId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PrayerVerse &&
+          other.prayerId == this.prayerId &&
+          other.verseId == this.verseId);
+}
+
+class PrayerVersesCompanion extends UpdateCompanion<PrayerVerse> {
+  final Value<int> prayerId;
+  final Value<int> verseId;
+  final Value<int> rowid;
+  const PrayerVersesCompanion({
+    this.prayerId = const Value.absent(),
+    this.verseId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PrayerVersesCompanion.insert({
+    required int prayerId,
+    required int verseId,
+    this.rowid = const Value.absent(),
+  })  : prayerId = Value(prayerId),
+        verseId = Value(verseId);
+  static Insertable<PrayerVerse> custom({
+    Expression<int>? prayerId,
+    Expression<int>? verseId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (prayerId != null) 'prayer_id': prayerId,
+      if (verseId != null) 'verse_id': verseId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PrayerVersesCompanion copyWith(
+      {Value<int>? prayerId, Value<int>? verseId, Value<int>? rowid}) {
+    return PrayerVersesCompanion(
+      prayerId: prayerId ?? this.prayerId,
+      verseId: verseId ?? this.verseId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (prayerId.present) {
+      map['prayer_id'] = Variable<int>(prayerId.value);
+    }
+    if (verseId.present) {
+      map['verse_id'] = Variable<int>(verseId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrayerVersesCompanion(')
+          ..write('prayerId: $prayerId, ')
+          ..write('verseId: $verseId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1775,6 +1867,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $FavoriteCollectionsTable(this);
   late final $CollectionVersesTable collectionVerses =
       $CollectionVersesTable(this);
+  late final $PrayerVersesTable prayerVerses = $PrayerVersesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1784,7 +1877,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         prayers,
         prayerCategories,
         favoriteCollections,
-        collectionVerses
+        collectionVerses,
+        prayerVerses
       ];
 }
 
@@ -2036,8 +2130,6 @@ typedef $$PrayersTableCreateCompanionBuilder = PrayersCompanion Function({
   Value<bool> isAnswered,
   Value<bool> hasReminder,
   Value<DateTime?> reminderTime,
-  Value<String?> linkedVerseRef,
-  Value<String?> linkedVerseText,
 });
 typedef $$PrayersTableUpdateCompanionBuilder = PrayersCompanion Function({
   Value<int> id,
@@ -2050,8 +2142,6 @@ typedef $$PrayersTableUpdateCompanionBuilder = PrayersCompanion Function({
   Value<bool> isAnswered,
   Value<bool> hasReminder,
   Value<DateTime?> reminderTime,
-  Value<String?> linkedVerseRef,
-  Value<String?> linkedVerseText,
 });
 
 class $$PrayersTableFilterComposer
@@ -2092,14 +2182,6 @@ class $$PrayersTableFilterComposer
 
   ColumnFilters<DateTime> get reminderTime => $composableBuilder(
       column: $table.reminderTime, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get linkedVerseRef => $composableBuilder(
-      column: $table.linkedVerseRef,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get linkedVerseText => $composableBuilder(
-      column: $table.linkedVerseText,
-      builder: (column) => ColumnFilters(column));
 }
 
 class $$PrayersTableOrderingComposer
@@ -2142,14 +2224,6 @@ class $$PrayersTableOrderingComposer
   ColumnOrderings<DateTime> get reminderTime => $composableBuilder(
       column: $table.reminderTime,
       builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get linkedVerseRef => $composableBuilder(
-      column: $table.linkedVerseRef,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get linkedVerseText => $composableBuilder(
-      column: $table.linkedVerseText,
-      builder: (column) => ColumnOrderings(column));
 }
 
 class $$PrayersTableAnnotationComposer
@@ -2190,12 +2264,6 @@ class $$PrayersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get reminderTime => $composableBuilder(
       column: $table.reminderTime, builder: (column) => column);
-
-  GeneratedColumn<String> get linkedVerseRef => $composableBuilder(
-      column: $table.linkedVerseRef, builder: (column) => column);
-
-  GeneratedColumn<String> get linkedVerseText => $composableBuilder(
-      column: $table.linkedVerseText, builder: (column) => column);
 }
 
 class $$PrayersTableTableManager extends RootTableManager<
@@ -2231,8 +2299,6 @@ class $$PrayersTableTableManager extends RootTableManager<
             Value<bool> isAnswered = const Value.absent(),
             Value<bool> hasReminder = const Value.absent(),
             Value<DateTime?> reminderTime = const Value.absent(),
-            Value<String?> linkedVerseRef = const Value.absent(),
-            Value<String?> linkedVerseText = const Value.absent(),
           }) =>
               PrayersCompanion(
             id: id,
@@ -2245,8 +2311,6 @@ class $$PrayersTableTableManager extends RootTableManager<
             isAnswered: isAnswered,
             hasReminder: hasReminder,
             reminderTime: reminderTime,
-            linkedVerseRef: linkedVerseRef,
-            linkedVerseText: linkedVerseText,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -2259,8 +2323,6 @@ class $$PrayersTableTableManager extends RootTableManager<
             Value<bool> isAnswered = const Value.absent(),
             Value<bool> hasReminder = const Value.absent(),
             Value<DateTime?> reminderTime = const Value.absent(),
-            Value<String?> linkedVerseRef = const Value.absent(),
-            Value<String?> linkedVerseText = const Value.absent(),
           }) =>
               PrayersCompanion.insert(
             id: id,
@@ -2273,8 +2335,6 @@ class $$PrayersTableTableManager extends RootTableManager<
             isAnswered: isAnswered,
             hasReminder: hasReminder,
             reminderTime: reminderTime,
-            linkedVerseRef: linkedVerseRef,
-            linkedVerseText: linkedVerseText,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -2705,6 +2765,134 @@ typedef $$CollectionVersesTableProcessedTableManager = ProcessedTableManager<
     ),
     CollectionVerse,
     PrefetchHooks Function()>;
+typedef $$PrayerVersesTableCreateCompanionBuilder = PrayerVersesCompanion
+    Function({
+  required int prayerId,
+  required int verseId,
+  Value<int> rowid,
+});
+typedef $$PrayerVersesTableUpdateCompanionBuilder = PrayerVersesCompanion
+    Function({
+  Value<int> prayerId,
+  Value<int> verseId,
+  Value<int> rowid,
+});
+
+class $$PrayerVersesTableFilterComposer
+    extends Composer<_$AppDatabase, $PrayerVersesTable> {
+  $$PrayerVersesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get prayerId => $composableBuilder(
+      column: $table.prayerId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get verseId => $composableBuilder(
+      column: $table.verseId, builder: (column) => ColumnFilters(column));
+}
+
+class $$PrayerVersesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PrayerVersesTable> {
+  $$PrayerVersesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get prayerId => $composableBuilder(
+      column: $table.prayerId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get verseId => $composableBuilder(
+      column: $table.verseId, builder: (column) => ColumnOrderings(column));
+}
+
+class $$PrayerVersesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PrayerVersesTable> {
+  $$PrayerVersesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get prayerId =>
+      $composableBuilder(column: $table.prayerId, builder: (column) => column);
+
+  GeneratedColumn<int> get verseId =>
+      $composableBuilder(column: $table.verseId, builder: (column) => column);
+}
+
+class $$PrayerVersesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $PrayerVersesTable,
+    PrayerVerse,
+    $$PrayerVersesTableFilterComposer,
+    $$PrayerVersesTableOrderingComposer,
+    $$PrayerVersesTableAnnotationComposer,
+    $$PrayerVersesTableCreateCompanionBuilder,
+    $$PrayerVersesTableUpdateCompanionBuilder,
+    (
+      PrayerVerse,
+      BaseReferences<_$AppDatabase, $PrayerVersesTable, PrayerVerse>
+    ),
+    PrayerVerse,
+    PrefetchHooks Function()> {
+  $$PrayerVersesTableTableManager(_$AppDatabase db, $PrayerVersesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PrayerVersesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PrayerVersesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PrayerVersesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> prayerId = const Value.absent(),
+            Value<int> verseId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PrayerVersesCompanion(
+            prayerId: prayerId,
+            verseId: verseId,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required int prayerId,
+            required int verseId,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PrayerVersesCompanion.insert(
+            prayerId: prayerId,
+            verseId: verseId,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PrayerVersesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $PrayerVersesTable,
+    PrayerVerse,
+    $$PrayerVersesTableFilterComposer,
+    $$PrayerVersesTableOrderingComposer,
+    $$PrayerVersesTableAnnotationComposer,
+    $$PrayerVersesTableCreateCompanionBuilder,
+    $$PrayerVersesTableUpdateCompanionBuilder,
+    (
+      PrayerVerse,
+      BaseReferences<_$AppDatabase, $PrayerVersesTable, PrayerVerse>
+    ),
+    PrayerVerse,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2719,4 +2907,6 @@ class $AppDatabaseManager {
       $$FavoriteCollectionsTableTableManager(_db, _db.favoriteCollections);
   $$CollectionVersesTableTableManager get collectionVerses =>
       $$CollectionVersesTableTableManager(_db, _db.collectionVerses);
+  $$PrayerVersesTableTableManager get prayerVerses =>
+      $$PrayerVersesTableTableManager(_db, _db.prayerVerses);
 }

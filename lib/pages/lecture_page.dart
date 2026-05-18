@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:drift/drift.dart' show Value;
 import '../database/database.dart';
 import '../services/database_service.dart';
 import '../services/tts_service.dart';
@@ -493,6 +492,11 @@ class _LecturePageState extends State<LecturePage>
     final key = index < _verseKeys.length ? _verseKeys[index] : null;
     final isFlashing = _flashIndex == index;
 
+    // Si un fond surligné/actif est appliqué, forcer le texte en sombre
+    // pour rester lisible quel que soit le thème (les couleurs de surlignage
+    // sont des pastels clairs).
+    final textOverride = readableTextOn(baseColor, context);
+
     if (isFlashing) {
       final flashColor =
           Theme.of(context).colorScheme.secondary.withValues(alpha: 0.55);
@@ -508,7 +512,7 @@ class _LecturePageState extends State<LecturePage>
             child: child,
           );
         },
-        child: _buildVerseRow(context, verse, index, isActive),
+        child: _buildVerseRow(context, verse, index, isActive, textOverride),
       );
     }
 
@@ -516,12 +520,12 @@ class _LecturePageState extends State<LecturePage>
       key: key,
       color: baseColor,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: _buildVerseRow(context, verse, index, isActive),
+      child: _buildVerseRow(context, verse, index, isActive, textOverride),
     );
   }
 
-  Widget _buildVerseRow(
-      BuildContext context, Verse verse, int index, bool isActive) {
+  Widget _buildVerseRow(BuildContext context, Verse verse, int index,
+      bool isActive, Color? textColor) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -537,10 +541,11 @@ class _LecturePageState extends State<LecturePage>
                   style: GoogleFonts.lora(
                     fontSize: themeService.bibleFontSize * 0.68,
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withAlpha(180),
+                    color: textColor ??
+                        Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withAlpha(180),
                     height: 1.6,
                   ),
                 ),
@@ -550,6 +555,7 @@ class _LecturePageState extends State<LecturePage>
                     fontSize: themeService.bibleFontSize,
                     fontWeight:
                         isActive ? FontWeight.w600 : FontWeight.normal,
+                    color: textColor,
                     height: 1.6,
                   ),
                 ),
@@ -844,49 +850,57 @@ class _LecturePageState extends State<LecturePage>
       return;
     }
 
-    final ref = '${verse.book} ${verse.chapter}:${verse.verse}';
+    // Pré-charge les ids des prières où ce verset est déjà lié,
+    // pour afficher des cases à cocher cohérentes.
+    final initialMemberships = <int, bool>{};
+    for (final p in prayers) {
+      final linked = await DatabaseService.db.getPrayerVerses(p.id);
+      initialMemberships[p.id] = linked.any((v) => v.id == verse.id);
+    }
+    if (!mounted) return;
 
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Lier à une prière'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: prayers.length,
-            itemBuilder: (_, i) {
-              final prayer = prayers[i];
-              return ListTile(
-                title: Text(prayer.title),
-                subtitle: prayer.linkedVerseRef != null
-                    ? Text('Lié à : ${prayer.linkedVerseRef}',
-                        style: const TextStyle(fontSize: 11))
-                    : null,
-                onTap: () async {
-                  await DatabaseService.db.updatePrayer(prayer.copyWith(
-                    linkedVerseRef: Value(ref),
-                    linkedVerseText: Value(verse.textContent),
-                  ));
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content:
-                              Text('Verset lié à « ${prayer.title} »')),
-                    );
-                  }
-                },
-              );
-            },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Lier à une ou plusieurs prières'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: prayers.length,
+              itemBuilder: (_, i) {
+                final prayer = prayers[i];
+                final isLinked = initialMemberships[prayer.id] ?? false;
+                return CheckboxListTile(
+                  value: isLinked,
+                  title: Text(prayer.title),
+                  controlAffinity: ListTileControlAffinity.trailing,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (v) async {
+                    if (v == true) {
+                      await DatabaseService.db
+                          .addVerseToPrayer(prayer.id, verse.id);
+                      setDialogState(
+                          () => initialMemberships[prayer.id] = true);
+                    } else {
+                      await DatabaseService.db
+                          .removeVerseFromPrayer(prayer.id, verse.id);
+                      setDialogState(
+                          () => initialMemberships[prayer.id] = false);
+                    }
+                  },
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fermer'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler'),
-          ),
-        ],
       ),
     );
   }

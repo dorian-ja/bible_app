@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../database/database.dart';
+import '../services/database_service.dart';
 import '../utils/prayer_constants.dart';
 
 class PrayerCard extends StatelessWidget {
@@ -81,52 +82,77 @@ class PrayerCard extends StatelessWidget {
                 ),
               ),
             ),
-          if (prayer.linkedVerseRef != null) ...[
-            Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              decoration: BoxDecoration(
-                color: Colors.brown.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.brown.shade200),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.menu_book_outlined,
-                      size: 14, color: Colors.brown),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          prayer.linkedVerseRef!,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.brown,
-                          ),
+          StreamBuilder<List<Verse>>(
+            stream: DatabaseService.db.watchPrayerVerses(prayer.id),
+            builder: (context, snapshot) {
+              final linked = snapshot.data ?? const [];
+              if (linked.isEmpty) return const SizedBox.shrink();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: Colors.brown.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.brown.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final v in linked)
+                      Padding(
+                        padding: EdgeInsets.only(
+                            bottom: v == linked.last ? 0 : 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.menu_book_outlined,
+                                size: 14, color: Colors.brown),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${v.book} ${v.chapter}:${v.verse}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.brown,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    v.textContent,
+                                    style: GoogleFonts.lora(
+                                        fontSize: 12,
+                                        color: Colors.brown.shade700,
+                                        height: 1.4),
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                  Icons.close, size: 16,
+                                  color: Colors.brown),
+                              tooltip: 'Retirer ce verset',
+                              padding: EdgeInsets.zero,
+                              constraints:
+                                  const BoxConstraints(minWidth: 28, minHeight: 28),
+                              onPressed: () => DatabaseService.db
+                                  .removeVerseFromPrayer(prayer.id, v.id),
+                            ),
+                          ],
                         ),
-                        if (prayer.linkedVerseText?.isNotEmpty == true) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            prayer.linkedVerseText!,
-                            style: GoogleFonts.lora(
-                                fontSize: 12,
-                                color: Colors.brown.shade700,
-                                height: 1.4),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
           Row(
             children: [
               if (category != null)
