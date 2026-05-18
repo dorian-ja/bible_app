@@ -13,6 +13,7 @@ import '../services/notification_service.dart';
 import '../utils/featured_verses.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
+import '../widgets/share_verse_image_dialog.dart';
 
 class VersetDuJourPage extends StatefulWidget {
   final void Function(String book, String chapter, [int verse])? onVerseTap;
@@ -264,6 +265,12 @@ class _VersetDuJourPageState extends State<VersetDuJourPage> {
                     onTap: () => SharePlus.instance.share(ShareParams(
                       text: '${_currentVerse!.book} ${_currentVerse!.chapter}:${_currentVerse!.verse}\n\u201c${_currentVerse!.textContent}\u201d',
                     )),
+                  ),
+                  _ActionButton(
+                    icon: Icons.image_outlined,
+                    label: 'Image',
+                    onTap: () =>
+                        showShareVerseImageDialog(context, _currentVerse!),
                   ),
                 ],
               ),

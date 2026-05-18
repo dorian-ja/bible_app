@@ -1,13 +1,9 @@
 // lib/pages/lecture_page.dart
 
 import 'dart:async';
-import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drift/drift.dart' show Value;
@@ -16,6 +12,7 @@ import '../services/database_service.dart';
 import '../services/tts_service.dart';
 import '../utils/note_colors.dart';
 import '../widgets/note_color_picker.dart';
+import '../widgets/share_verse_image_dialog.dart';
 import '../main.dart' show themeService;
 import 'immersive_lecture_page.dart';
 
@@ -569,12 +566,14 @@ class _LecturePageState extends State<LecturePage>
               case _VerseAction.favorite:
                 HapticFeedback.lightImpact();
                 DatabaseService.toggleFavorite(verse);
+              case _VerseAction.collection:
+                _showAddToCollectionDialog(verse);
               case _VerseAction.share:
                 SharePlus.instance.share(ShareParams(
                     text:
                         '${verse.book} ${verse.chapter}:${verse.verse}\n"${verse.textContent}"'));
               case _VerseAction.shareImage:
-                _shareVerseAsImage(verse);
+                showShareVerseImageDialog(context, verse);
               case _VerseAction.concordance:
                 _showConcordance(verse);
               case _VerseAction.linkPrayer:
@@ -600,6 +599,14 @@ class _LecturePageState extends State<LecturePage>
                 title: Text(verse.isFavorite
                     ? 'Retirer des favoris'
                     : 'Ajouter aux favoris'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: _VerseAction.collection,
+              child: ListTile(
+                leading: Icon(Icons.collections_bookmark_outlined),
+                title: Text('Ajouter à une collection'),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
@@ -640,6 +647,184 @@ class _LecturePageState extends State<LecturePage>
         if (verse.isFavorite)
           const Icon(Icons.star, color: Colors.amber, size: 14),
       ],
+    );
+  }
+
+  Future<void> _showAddToCollectionDialog(Verse verse) async {
+    final collections =
+        (await DatabaseService.db.watchAllCollections().first).toList();
+    if (!mounted) return;
+
+    final memberIds = await DatabaseService.db.getVerseCollectionIds(verse.id);
+    if (!mounted) return;
+    final selected = memberIds.toSet();
+
+    Color parseHex(String hex) {
+      final c = hex.replaceAll('#', '');
+      if (c.length == 6) {
+        final v = int.tryParse(c, radix: 16);
+        if (v != null) return Color(0xFF000000 | v);
+      }
+      return const Color(0xFF4E342E);
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Collections'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: collections.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                        'Aucune collection. Créez-en une avec le bouton « + ».'),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: collections.length,
+                    itemBuilder: (_, i) {
+                      final col = collections[i];
+                      final isIn = selected.contains(col.id);
+                      return CheckboxListTile(
+                        value: isIn,
+                        title: Text(col.name),
+                        secondary: CircleAvatar(
+                          radius: 12,
+                          backgroundColor: parseHex(col.colorHex),
+                        ),
+                        controlAffinity: ListTileControlAffinity.trailing,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (v) async {
+                          if (v == true) {
+                            await DatabaseService.db
+                                .addVerseToCollection(col.id, verse.id);
+                            setDialogState(() => selected.add(col.id));
+                          } else {
+                            await DatabaseService.db
+                                .removeVerseFromCollection(col.id, verse.id);
+                            setDialogState(() => selected.remove(col.id));
+                          }
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Nouvelle'),
+              onPressed: () async {
+                final created = await _showCreateCollectionDialog();
+                if (created != null) {
+                  await DatabaseService.db
+                      .addVerseToCollection(created, verse.id);
+                  // Recharger la liste après création
+                  final fresh =
+                      await DatabaseService.db.watchAllCollections().first;
+                  setDialogState(() {
+                    collections
+                      ..clear()
+                      ..addAll(fresh);
+                    selected.add(created);
+                  });
+                }
+              },
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<int?> _showCreateCollectionDialog() async {
+    final nameCtrl = TextEditingController();
+    String selectedHex = '#4E342E';
+    final colors = [
+      ('#4E342E', 'Marron'),
+      ('#1565C0', 'Bleu'),
+      ('#2E7D32', 'Vert'),
+      ('#AD1457', 'Rose'),
+      ('#E65100', 'Orange'),
+      ('#6A1B9A', 'Violet'),
+    ];
+
+    Color parseHex(String hex) {
+      final c = hex.replaceAll('#', '');
+      final v = int.tryParse(c, radix: 16);
+      return v != null ? Color(0xFF000000 | v) : const Color(0xFF4E342E);
+    }
+
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Nouvelle collection'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Nom'),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                children: colors.map((c) {
+                  final isSelected = selectedHex == c.$1;
+                  return GestureDetector(
+                    onTap: () => setDialogState(() => selectedHex = c.$1),
+                    child: Tooltip(
+                      message: c.$2,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: parseHex(c.$1),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey.shade400,
+                            width: isSelected ? 2.5 : 1,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check,
+                                size: 14, color: Colors.white)
+                            : null,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) return;
+                final id = await DatabaseService.db
+                    .insertCollection(name, selectedHex);
+                if (ctx.mounted) Navigator.pop(ctx, id);
+              },
+              child: const Text('Créer'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -702,105 +887,6 @@ class _LecturePageState extends State<LecturePage>
             child: const Text('Annuler'),
           ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _shareVerseAsImage(Verse verse) async {
-    final repaintKey = GlobalKey();
-    final highlight = parseNoteColor(verse.noteColor);
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        contentPadding: const EdgeInsets.all(16),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RepaintBoundary(
-              key: repaintKey,
-              child: Container(
-                width: 320,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: highlight ?? Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF4E342E), width: 1.5),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${verse.book} ${verse.chapter}:${verse.verse}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Color(0xFF4E342E),
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      verse.textContent,
-                      style: GoogleFonts.lora(
-                          fontSize: 15, height: 1.6, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        'MyOwnBible',
-                        style: GoogleFonts.lora(
-                            fontSize: 11,
-                            color: const Color(0xFF4E342E),
-                            fontStyle: FontStyle.italic),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Annuler'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  icon: const Icon(Icons.share, size: 18),
-                  label: const Text('Partager'),
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    try {
-                      final boundary = repaintKey.currentContext
-                          ?.findRenderObject() as RenderRepaintBoundary?;
-                      if (boundary == null) return;
-                      final image = await boundary.toImage(pixelRatio: 3.0);
-                      final byteData = await image.toByteData(
-                          format: ui.ImageByteFormat.png);
-                      if (byteData == null) return;
-                      final bytes = byteData.buffer.asUint8List();
-                      final dir = await getTemporaryDirectory();
-                      final file = File(
-                          '${dir.path}/verset_${verse.book}_${verse.chapter}_${verse.verse}.png');
-                      await file.writeAsBytes(bytes);
-                      await SharePlus.instance.share(ShareParams(
-                        files: [XFile(file.path, mimeType: 'image/png')],
-                        text:
-                            '${verse.book} ${verse.chapter}:${verse.verse}',
-                      ));
-                    } catch (e) {
-                      debugPrint('Erreur partage image: $e');
-                    }
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -978,7 +1064,15 @@ class _LecturePageState extends State<LecturePage>
   }
 }
 
-enum _VerseAction { note, favorite, share, shareImage, concordance, linkPrayer }
+enum _VerseAction {
+  note,
+  favorite,
+  collection,
+  share,
+  shareImage,
+  concordance,
+  linkPrayer,
+}
 
 // ── Widget barre de lecture audio ──────────────────────────────────────────
 
